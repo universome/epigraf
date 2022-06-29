@@ -1,0 +1,5 @@
+# @package _group_
+
+name: interp_video_grid
+fps: 30
+num_interp_steps: 6

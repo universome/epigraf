@@ -1,0 +1,7 @@
+# @package _group_
+
+name: stylegan2
+generator: {}
+discriminator: {}
+loss_kwargs:
+  pl_weight: 2.0

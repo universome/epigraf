@@ -1,0 +1,39 @@
+# @package _group_
+
+generator:
+  fmaps: 1.0 # # Capacity multiplier --- the default one is 1.0
+  cmax: 512
+  cbase: 32768
+  optim:
+    betas: [0.0, 0.99]
+  patch: ${training.patch}
+  dataset: ${dataset}
+  w_dim: 512
+  camera_cond: false
+  camera_cond_drop_p: 0.0
+  camera_cond_spoof_p: 0.5
+  map_depth: 2 # Mapping network depth
+discriminator:
+  fmaps: 0.5 # # Capacity multiplier --- the default one is 1.0
+  cmax: 512
+  cbase: 32768
+  patch: ${training.patch}
+
+  # The amount of start blocks of max resolution before the downsampling backbone begins
+  # We want to have the same amount of overall blocks as StyleGAN2 discriminator,
+  # that's why we need to adjust
+  num_additional_start_blocks:
+    _target_: src.infra.utils.log2_divide
+    dividend: ${dataset.resolution}
+    divisor: ${training.patch.resolution}
+
+  mbstd_group_size: 4 # Minibatch std group size
+  camera_cond: false
+  camera_cond_drop_p: 0.0
+  hyper_mod: false
+
+  optim:
+    lr: 0.002
+    betas: [0.0, 0.99]
+loss_kwargs:
+  pl_weight: 0.0

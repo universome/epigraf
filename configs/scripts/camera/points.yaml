@@ -1,0 +1,5 @@
+# @package _group_
+
+name: points
+yaws: [0.0, -0.3, 0.3]
+pitch: 1.57

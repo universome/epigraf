@@ -1,0 +1,10 @@
+# @package _group_
+
+# Main options
+seeds: [1]
+cube_size: 0.3
+voxel_res: 256
+max_batch_res: 32
+voxel_origin: [0.0, 0.0, 0.0]
+output_dir: shapes
+thresh_percentile: 97.5

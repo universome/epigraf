@@ -1,0 +1,16 @@
+# @package _group_
+
+name: ${dataset.category}_train_${dataset.resolution}
+category: ~
+sampling:
+   # TODO: copy-pasted from FFHQ.
+   # Does not actually represent anything...
+  fov: 12.0
+  ray_start: 0.88
+  ray_end: 1.12
+  radius: 1.0
+  dist: gaussian
+  horizontal_stddev: 0.3
+  vertical_stddev: 0.155
+  horizontal_mean: 0.7417649320975901
+  vertical_mean: 0.7417649320975901

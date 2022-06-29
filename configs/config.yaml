@@ -1,0 +1,14 @@
+defaults:
+  - model/base.yaml
+  - model: epigraf
+
+  # Import dataset common and overwrite it with the custom one
+  - dataset/base.yaml
+  - dataset: ffhq
+
+  - training/base.yaml
+  - training: patch_beta
+
+  - env/base.yaml
+  - env: local
+  - infra.yaml

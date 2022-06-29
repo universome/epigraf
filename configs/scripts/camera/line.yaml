@@ -1,0 +1,9 @@
+# @package _group_
+
+name: line
+num_frames: 16
+yaw_left: -1.57
+yaw_right: 1.57
+pitch_left: 0.835
+pitch_right: 0.835
+fov: null

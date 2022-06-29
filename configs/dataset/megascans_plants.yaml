@@ -1,0 +1,18 @@
+# @package _group_
+
+name: plants_${dataset.resolution}
+sampling:
+  fov: 30.0
+  ray_start: 0.75
+  ray_end: 1.25
+  radius: 1.0
+  # dist: custom
+  dist: spherical_uniform
+  horizontal_stddev: 3.141592653589793
+  vertical_stddev: 1.5707963267948966
+  horizontal_mean: 0.0
+  vertical_mean: 1.5707963267948966
+white_back: true
+last_back: false
+cube_scale: 0.475
+c_dim: 191

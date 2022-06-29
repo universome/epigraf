@@ -1,0 +1,61 @@
+# @package _group_
+
+batch_size: 64 # Total batch size
+test_batch_gpu: 4 # Batch size at test time
+gamma: auto # R1 regularization weight
+
+# Optional features.
+use_labels: false # Train conditional model
+mirror: true # Enable dataset x-flips
+resume: latest # Resume from given network pickle
+freezed: 0 # Freeze first layers of D
+
+# Misc hyperparameters.
+p: 0.2 # Probability for aug=fixed
+target: 0.6 # Target value for aug=ada
+batch_gpu: null # Limit batch size per GPU
+
+# Misc settings.
+desc: null # String to include in result dir name
+metrics: fid2k_full # Quality metrics
+main_metric: __pick_first__ # Takes the first metric among `metrics` as the main one to compute the best checkpoint
+kimg: 50000 # Total training duration
+tick: 4 # How often to print progress
+val_freq: 100 # How often to compute metrics
+snap: 250 # How often to save snapshots
+image_snap: 100 # How often to save samples?
+seed: 0 # Random seed
+fp32: false # Disable mixed-precision
+nobench: false # Disable cuDNN benchmarking
+workers: 3 # DataLoader worker processes
+dry_run: false # Print training options and exit
+
+# Default parameters for patch-wise training (in case it is enabled)
+patch:
+  enabled: true
+  patch_params_cond: true # Patch parameters pos-enc embeddings dimensionality
+  min_scale_trg:
+    _target_: src.infra.utils.divide
+    dividend: ${training.patch.resolution}
+    divisor: ${dataset.resolution}
+  max_scale: 1.0
+  anneal_kimg: 10000
+  resolution: 64
+  mbstd_group_size: ${model.discriminator.mbstd_group_size}
+
+augment:
+  mode: ada # Augmentation mode. One of ["noaug", "ada", "fixed"]
+  # Augment probabilities for different transformation types
+  probs:
+    xflip: 0.0
+    rotate90: 1.0
+    xint: 1.0
+    scale: 1.0
+    rotate: 1.0
+    xfrac: 1.0
+    aniso: 1.0
+    brightness: 1.0
+    contrast: 1.0
+    lumaflip: 1.0
+    hue: 1.0
+    saturation: 1.0

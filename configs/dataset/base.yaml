@@ -1,0 +1,12 @@
+# @package _group_
+
+path: data/${dataset.name}.zip
+c_dim: 0
+sampling: ~ # You must define it explicitly
+
+# Default parameters
+resolution: 256
+
+# When used with slurm, this will take the dataset from `path_for_slurm_job`
+# and will copy it into the `path` location
+path_for_slurm_job: ${env.datasets_dir}/${dataset.name}.zip

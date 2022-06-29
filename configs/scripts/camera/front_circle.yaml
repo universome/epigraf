@@ -1,0 +1,7 @@
+# @package _group_
+
+name: front_circle
+num_frames: 64
+yaw_diff: 0.3
+pitch_diff: 0.2
+use_zoom: true

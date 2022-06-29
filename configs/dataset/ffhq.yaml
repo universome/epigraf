@@ -1,0 +1,16 @@
+# @package _group_
+
+name: ffhq_${dataset.resolution}
+sampling:
+  fov: 12.0
+  ray_start: 0.88
+  ray_end: 1.12
+  radius: 1.0
+  dist: gaussian
+  horizontal_stddev: 0.3
+  horizontal_mean: 0.0
+  vertical_mean: 1.57079632679
+  vertical_stddev: 0.155
+cube_scale: 0.2
+white_back: false
+last_back: false

@@ -1,0 +1,54 @@
+# @package _group_
+
+name: epigraf
+generator:
+  backbone: stylegan2
+  num_ray_steps: 48 # Amount of evaluations per ray
+
+  # An activation to clamp density
+  # Somehow, in our early experiments it was very important...
+  clamp_mode: softplus
+
+  # Similar to NeRF, we add noise to evaluations
+  nerf_noise_std_init: 1.0
+  nerf_noise_kimg_growth: 5000
+
+  # Should we use spatial noise in StyleGAN2?
+  # Very strangely, we found this to be important in our early experiments...
+  use_noise: true
+
+  tri_plane:
+    res: 512 # Resolution for the tri-plane. It's higher than in EG3D since we train in high-res directly
+    feat_dim: 32 # Dimensionality of the tri-plane
+    fp32: true # Should we use it in fp32 only?
+    view_hid_dim: 0 # Use view direction conditining? (never used)
+    posenc_period_len: 0 # Should we use coordinate conditioning? (never used)
+
+    # Parameters of the tri-plane MLP
+    mlp:
+      n_layers: 2 # Total number of layers
+      hid_dim: 64 # Dimensionality of hidden layers
+
+  # Parameters for the background INR model
+  bg_model:
+    type: ~ # One of [null, "plane", "sphere"]
+    output_channels: 4 # We predict RGB + density
+    coord_dim: 4 # Number of input coordinatates: x', y', z' and 1/r (see the NeRF++ paper)
+    num_blocks: 2 # Number of fully-connected blocks
+    cbase: 32768 # Controls the dimensionality
+    cmax: 128 # Maximum number of channels in the network (it's pretty small)
+    num_fp16_blocks: 0 # Should we use fp16 for last blocks?
+    fmm: {enabled: false, rank: 3, activation: demod} # Parameters for FMM (never used to save parameters)
+    posenc_period_len: 64.0 # Fourier features period length
+
+    # Sampling parameters
+    num_steps: 8 # Number of steps per ray
+    start: 1.0 # Start plane for the background in terms of disparity, i.e. in [1, 0) range
+
+discriminator:
+  # Should we use patch parameters modulation for the discriminator?
+  hyper_mod: true
+
+loss_kwargs:
+  blur_init_sigma: 10
+  blur_fade_kimg: 200

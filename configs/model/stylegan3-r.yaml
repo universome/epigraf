@@ -1,0 +1,13 @@
+# @package _group_
+
+name: stylegan3-r
+
+loss_kwargs:
+  blur_init_sigma: 10 # Blur the images seen by the discriminator.
+  blur_fade_kimg: # Fade out the blur during the first N kimg.
+    _target_: src.infra.utils.product
+    values:
+      - ${training.batch_size}
+      - 200
+      - 0.03125 # = 1/32
+
