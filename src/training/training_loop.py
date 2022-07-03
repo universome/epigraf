@@ -138,7 +138,8 @@ def training_loop(
             z = torch.empty([cfg.training.test_batch_gpu, G.z_dim], device=device)
             c = torch.empty([cfg.training.test_batch_gpu, G.c_dim], device=device)
             camera_angles = torch.empty([cfg.training.test_batch_gpu, 3], device=device) # [batch_size, 3]
-            img = misc.print_module_summary(G, [z, c], module_kwargs={'camera_angles': camera_angles})
+            img = misc.print_module_summary(G, [z[[0]], c[[0]]], module_kwargs={'camera_angles': camera_angles[[0]]}) # [1, c, h, w]
+            img = img.repeat(cfg.training.test_batch_gpu, 1, 1, 1) # [batch_size, c, h, w]
             if loss_kwargs.cfg.training.patch.enabled:
                 img = img[:, :, :loss_kwargs.cfg.training.patch.resolution, :loss_kwargs.cfg.training.patch.resolution] # [batch_size, c, patch_h, patch_w]
             misc.print_module_summary(D, [img, c], module_kwargs={
