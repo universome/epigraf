@@ -1,7 +1,7 @@
 # EpiGRAF: Rethinking training of 3D GANs
 
-[[website]](https://rethinking-3d-gans.github.io)
-[[paper]](https://rethinking-3d-gans.github.io/rethinking-3d-gans.pdf)
+[[website]](https://universome.github.io/epigraf)
+[[paper]](https://universome.github.io/assets/projects/epigraf/epigraf.pdf)
 [[arxiv]](https://arxiv.org/abs/2206.10535)
 
 <div style="text-align:center">
