@@ -2,7 +2,7 @@
 
 scene: ficus
 name: ${dataset.scene}_${dataset.resolution}
-sampling:
+camera:
   # fov: 20.0
   # ray_start: 3.5
   # ray_end: 4.5

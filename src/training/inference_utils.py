@@ -49,7 +49,7 @@ def setup_snapshot_image_grid(training_set, cfg, random_seed=0):
     batch = [training_set[i] for i in grid_indices]
     images = [b['image'] for b in batch]
     labels = [b['label'] for b in batch]
-    if cfg.dataset.sampling.dist == 'custom':
+    if cfg.dataset.camera.dist == 'custom':
         camera_angles = [b['camera_angles'] for b in batch]
     else:
         camera_angles = sample_camera_angles(cfg=cfg.dataset.sampling, batch_size=len(batch), device='cpu').numpy()
@@ -82,7 +82,7 @@ def generate_videos(G: torch.nn.Module, z: torch.Tensor, c: torch.Tensor) -> tor
     z, c = z[:num_videos], c[:num_videos], # [num_videos, z_dim], [num_videos, c_dim]
     camera_cfg = dnnlib.EasyDict({'name': 'front_circle', 'num_frames': 32, 'yaw_diff': 0.5, 'pitch_diff': 0.3, 'use_zoom': True})
     vis_cfg = dnnlib.EasyDict({'max_batch_res': 64, 'batch_size': 8})
-    angles, fovs = generate_camera_angles(camera_cfg, default_fov=G.cfg.dataset.sampling.fov) # [num_frames, 3], [num_frames]
+    angles, fovs = generate_camera_angles(camera_cfg, default_fov=G.cfg.dataset.camera.fov) # [num_frames, 3], [num_frames]
     ws = G.mapping(z=z, c=c) # [num_videos, num_ws, w_dim]
     images = generate_trajectory(vis_cfg, G, ws, angles[:, :2], fovs=fovs, verbose=False) # [num_frames, num_videos, c, h, w]
     images = images.permute(1, 0, 2, 3, 4) # [num_videos, num_frames, c, h, w]
@@ -124,7 +124,7 @@ def generate(cfg: DictConfig, G, ws: torch.Tensor, angles: torch.Tensor, fovs: t
     for batch_idx in batch_indices:
         curr_slice = slice(batch_idx * cfg.batch_size, (batch_idx + 1) * cfg.batch_size)
         curr_ws, curr_angles = ws[curr_slice], angles[curr_slice] # [batch_size, num_ws, w_dim], [batch_size, 3]
-        curr_fovs = G.cfg.dataset.sampling.fov if fovs is None else fovs[curr_slice] # [1] or [batch_size]
+        curr_fovs = G.cfg.dataset.camera.fov if fovs is None else fovs[curr_slice] # [1] or [batch_size]
         frame = G.synthesis(curr_ws, camera_angles=curr_angles, fov=curr_fovs, **synthesis_kwargs) # [batch_size, c, h, w]
         frame = frame.clamp(-1, 1).cpu() * 0.5 + 0.5 # [batch_size, c, h, w]
         frames.extend(frame)

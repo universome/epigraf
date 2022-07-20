@@ -1,7 +1,7 @@
 # @package _group_
 
 name: carla_${dataset.resolution}
-sampling:
+camera:
   fov: 30.0
   ray_start: 0.75
   ray_end: 1.25

@@ -105,7 +105,7 @@ def generate_vis(cfg: DictConfig):
             video = (frame_grids * 255).to(torch.uint8).permute(0, 2, 3, 1) # [T, H, W, C]
             tv.io.write_video(save_path, video, fps=cfg.vis.fps, video_codec='h264', options={'crf': '10'})
     elif cfg.vis.name == 'video':
-        angles, fovs = generate_camera_angles(cfg.camera, default_fov=G.cfg.dataset.sampling.fov) # [num_frames, 3], [num_frames]
+        angles, fovs = generate_camera_angles(cfg.camera, default_fov=G.cfg.dataset.camera.fov) # [num_frames, 3], [num_frames]
         ws = sample_ws_from_seeds(G, seeds, cfg, device, num_interp_steps=0) # [num_videos, num_ws, w_dim]
         images = generate_trajectory(cfg, G, ws, angles[:, :2], fovs=fovs, **cfg.synthesis_kwargs) # [num_frames, num_videos, c, h, w]
         images = images.permute(1, 0, 2, 3, 4) # [num_videos, num_frames, c, h, w]
@@ -114,7 +114,7 @@ def generate_vis(cfg: DictConfig):
             video = (video_frames * 255).to(torch.uint8).permute(0, 2, 3, 1) # [T, H, W, C]
             tv.io.write_video(save_path, video, fps=cfg.vis.fps, video_codec='h264', options={'crf': '10'})
     elif cfg.vis.name == 'video_grid':
-        angles, fovs = generate_camera_angles(cfg.camera, default_fov=G.cfg.dataset.sampling.fov) # [num_frames, 3], [num_frames]
+        angles, fovs = generate_camera_angles(cfg.camera, default_fov=G.cfg.dataset.camera.fov) # [num_frames, 3], [num_frames]
         ws = sample_ws_from_seeds(G, seeds, cfg, device, num_interp_steps=0) # [num_videos, num_ws, w_dim]
         images = generate_trajectory(cfg, G, ws, angles[:, :2], fovs=fovs, **cfg.synthesis_kwargs) # [num_frames, num_videos, c, h, w]
         for grid_idx in tqdm(list(range(0, (len(seeds) + cfg.vis.num_videos_per_grid - 1) // cfg.vis.num_videos_per_grid)), desc='Saving'):

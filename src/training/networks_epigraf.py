@@ -357,7 +357,7 @@ class SynthesisNetwork(torch.nn.Module):
         batch_size = ws.shape[0]
         h = w = (self.train_resolution if self.training else self.test_resolution)
         should_render_bg = (not self.cfg.bg_model.type is None) and (not ignore_bg)
-        fov = self.cfg.dataset.sampling.fov if fov is None else fov # [1] or [batch_size]
+        fov = self.cfg.dataset.camera.fov if fov is None else fov # [1] or [batch_size]
 
         if self.cfg.bg_model.type == "plane":
             bg = plane_feats[:, -self.img_channels:, :, :] # [batch_size, h, w]
@@ -374,9 +374,9 @@ class SynthesisNetwork(torch.nn.Module):
         nerf_noise_std = self.nerf_noise_std if self.training else 0.0
 
         z_vals, rays_d_cam = get_initial_rays_trig(
-            batch_size, num_steps, resolution=(h, w), device=ws.device, ray_start=self.cfg.dataset.sampling.ray_start,
-            ray_end=self.cfg.dataset.sampling.ray_end, fov=fov, patch_params=patch_params)
-        c2w = compute_cam2world_matrix(camera_angles, self.cfg.dataset.sampling.radius) # [batch_size, 4, 4]
+            batch_size, num_steps, resolution=(h, w), device=ws.device, ray_start=self.cfg.dataset.camera.ray_start,
+            ray_end=self.cfg.dataset.camera.ray_end, fov=fov, patch_params=patch_params)
+        c2w = compute_cam2world_matrix(camera_angles, self.cfg.dataset.camera.radius) # [batch_size, 4, 4]
         points_world, z_vals, ray_d_world, ray_o_world = transform_points(z_vals=z_vals, ray_directions=rays_d_cam, c2w=c2w) # [batch_size, h * w, num_steps, 1], [?]
         points_world = points_world.reshape(batch_size, h * w * num_steps, 3) # [batch_size, h * w * num_steps, 3]
 

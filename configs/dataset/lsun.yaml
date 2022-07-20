@@ -2,7 +2,7 @@
 
 name: ${dataset.category}_train_${dataset.resolution}
 category: ~
-sampling:
+camera:
    # TODO: copy-pasted from FFHQ.
    # Does not actually represent anything...
   fov: 12.0

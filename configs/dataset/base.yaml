@@ -2,7 +2,7 @@
 
 path: data/${dataset.name}.zip
 c_dim: 0
-sampling: ~ # You must define it explicitly
+camera: ~ # You must define it explicitly
 
 # Default parameters
 resolution: 256

@@ -120,7 +120,7 @@ def init_dataset(cfg: DictConfig):
         dataset_kwargs.use_labels = dataset.has_labels # Be explicit about labels.
         dataset_kwargs.max_size = len(dataset) # Be explicit about dataset size.
 
-        if cfg.dataset.sampling.dist == 'custom':
+        if cfg.dataset.camera.dist == 'custom':
             print('Validating camera poses in the dataset...', end='')
             camera_angles = torch.from_numpy(np.array([dataset.get_camera_angles(i) for i in range(len(dataset))]))
             mean_camera_pose = camera_angles.mean(axis=0) # [3]
@@ -132,7 +132,7 @@ def init_dataset(cfg: DictConfig):
             assert not torch.any(camera_angles[:, [1]] > np.pi), f"Number of broken pitch angles (too large): {torch.sum(camera_angles[:, [1]] > np.pi)}"
             print('done!')
         else:
-            mean_camera_pose = torch.tensor([cfg.dataset.sampling.horizontal_mean, cfg.dataset.sampling.vertical_mean, 0.0]) # [3]
+            mean_camera_pose = torch.tensor([cfg.dataset.camera.horizontal_mean, cfg.dataset.camera.vertical_mean, 0.0]) # [3]
 
         return dataset_kwargs, mean_camera_pose
     except IOError as err:
@@ -207,7 +207,7 @@ def main(cfg: DictConfig):
         raise ValueError('\n'.join(['--metrics can only contain the following values:'] + metric_main.list_valid_metrics()))
 
     if cfg.model.discriminator.camera_cond:
-        assert cfg.dataset.sampling.dist == 'custom', f"To condition D on real camera angles, they should be available in the dataset."
+        assert cfg.dataset.camera.dist == 'custom', f"To condition D on real camera angles, they should be available in the dataset."
 
     # Base configuration.
     c.ema_kimg = c.batch_size * 10 / 32
@@ -227,10 +227,10 @@ def main(cfg: DictConfig):
 
         print('Validating that the vieweing frustum is inside the cube...', end='')
         assert validate_frustum(
-            fov=cfg.dataset.sampling.fov,
-            near=cfg.dataset.sampling.ray_start,
-            far=cfg.dataset.sampling.ray_end,
-            radius=cfg.dataset.sampling.radius,
+            fov=cfg.dataset.camera.fov,
+            near=cfg.dataset.camera.ray_start,
+            far=cfg.dataset.camera.ray_end,
+            radius=cfg.dataset.camera.radius,
             scale=cfg.dataset.get('cube_scale', 1.0),
             verbose=False,
         ), f"Please, increase the scale: {cfg.model.generator.tri_plane.scale}"

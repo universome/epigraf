@@ -58,13 +58,13 @@ def get_feature_detector(url, device=torch.device('cpu'), num_gpus=1, rank=0, ve
 #----------------------------------------------------------------------------
 
 def iterate_random_conditioning(opts, batch_size):
-    if opts.G.c_dim != 0 or opts.G.cfg.dataset.sampling.dist == 'custom':
+    if opts.G.c_dim != 0 or opts.G.cfg.dataset.camera.dist == 'custom':
         dataset = dnnlib.util.construct_class_by_name(**opts.dataset_kwargs)
 
     if opts.G.c_dim == 0:
         c = torch.zeros([batch_size, opts.G.c_dim], device=opts.device)
 
-    if opts.G.c_dim == 0 and opts.G.cfg.dataset.sampling.dist != 'custom':
+    if opts.G.c_dim == 0 and opts.G.cfg.dataset.camera.dist != 'custom':
         while True:
             yield c, sample_camera_angles(cfg=opts.G.cfg.dataset.sampling, batch_size=batch_size, device=opts.device)
     else:
@@ -77,7 +77,7 @@ def iterate_random_conditioning(opts, batch_size):
                 curr_c = [dataset.get_label(i) for i in sample_idx]
                 curr_c = torch.from_numpy(np.stack(curr_c)).pin_memory().to(opts.device)
 
-            if opts.G.cfg.dataset.sampling.dist == 'custom':
+            if opts.G.cfg.dataset.camera.dist == 'custom':
                 camera_angles = [dataset.get_camera_angles(i) for i in sample_idx]
                 camera_angles = torch.from_numpy(np.stack(camera_angles)).pin_memory().to(opts.device)
             else:
