@@ -26,7 +26,7 @@ torch.set_grad_enabled(False)
 def generate_vis(cfg: DictConfig):
     device = torch.device('cuda')
     save_dir = os.path.join(cfg.output_dir, cfg.vis.name)
-    set_seed(cfg.seed) # To fix non-z randomization
+    set_seed(42) # To fix non-z randomization
 
     G = load_generator(cfg.ckpt, verbose=cfg.verbose)[0].to(device).eval()
     G.synthesis.img_resolution = G.synthesis.test_resolution = cfg.img_resolution
@@ -36,7 +36,7 @@ def generate_vis(cfg: DictConfig):
     G.nerf_noise_std = 0
     maybe_makedirs(save_dir)
     assert (not cfg.seeds is None) or (not cfg.num_seeds is None), "You must specify either `num_seeds` or `seeds`"
-    seeds = cfg.seeds if cfg.num_seeds is None else (cfg.seed + np.arange(cfg.num_seeds))
+    seeds = cfg.seeds if cfg.num_seeds is None else np.arange(cfg.num_seeds)
 
     if cfg.vis.name == 'front_grid':
         ws = sample_ws_from_seeds(G, seeds, cfg, device) # [num_grids, num_ws, w_dim]
