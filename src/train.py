@@ -206,6 +206,9 @@ def main(cfg: DictConfig):
     if any(not metric_main.is_valid_metric(metric) for metric in c.metrics):
         raise ValueError('\n'.join(['--metrics can only contain the following values:'] + metric_main.list_valid_metrics()))
 
+    if cfg.model.discriminator.camera_cond:
+        assert cfg.dataset.sampling.dist == 'custom', f"To condition D on real camera angles, they should be available in the dataset."
+
     # Base configuration.
     c.ema_kimg = c.batch_size * 10 / 32
     if cfg.model.name == 'stylegan2':

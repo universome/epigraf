@@ -484,7 +484,7 @@ class Generator(torch.nn.Module):
         self.img_channels = img_channels
         self.synthesis = SynthesisNetwork(cfg=cfg, w_dim=w_dim, img_resolution=img_resolution, img_channels=img_channels, **synthesis_kwargs)
         self.num_ws = self.synthesis.num_ws
-        self.mapping = MappingNetwork(z_dim=z_dim, c_dim=c_dim, w_dim=w_dim, num_ws=self.num_ws, **mapping_kwargs)
+        self.mapping = MappingNetwork(z_dim=z_dim, c_dim=c_dim, w_dim=w_dim, num_ws=self.num_ws, camera_raw_scalars=True, **mapping_kwargs)
 
     def progressive_update(self, cur_kimg: float):
         self.synthesis.progressive_update(cur_kimg)
