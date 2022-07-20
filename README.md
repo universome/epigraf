@@ -25,6 +25,15 @@ conda activate ./env
 ```
 This repo is built on top of [StyleGAN3](https://github.com/NVlabs/stylegan3), so make sure that it runs on your system.
 
+Sometimes, it falls down with the error:
+```
+AttributeError: module 'distutils' has no attribute 'version'
+```
+in which case you would need to [install an older verion](https://github.com/pytorch/pytorch/issues/69894#issuecomment-1080635462) of `setuptools`:
+```
+pip install setuptools==59.5.0
+```
+
 ## Data
 
 Data should be stored in a zip archive, the exact structure is not important, the script will use all the found images.
