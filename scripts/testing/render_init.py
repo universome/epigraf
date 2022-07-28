@@ -21,6 +21,7 @@ def instantiate_G(cfg: DictConfig, use_grad: bool=False) -> nn.Module:
     G_kwargs.mapping_kwargs.num_layers = cfg.model.generator.map_depth
     G_kwargs.mapping_kwargs.camera_cond = cfg.training.get('camera_cond', False)
     G_kwargs.mapping_kwargs.camera_cond_drop_p = cfg.training.get('camera_cond_drop_p', 0.0)
+    G_kwargs.mapping_kwargs.camera_cond_noise_std = cfg.training.get('camera_cond_noise_std', 0.0)
 
     if cfg.model.name == 'stylegan2':
         G_kwargs.class_name = 'training.networks_stylegan2.Generator'

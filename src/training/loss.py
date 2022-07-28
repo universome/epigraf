@@ -95,7 +95,7 @@ class StyleGAN2Loss(Loss):
         blur_sigma = max(1 - cur_nimg / (self.blur_fade_kimg * 1e3), 0) * self.blur_init_sigma if self.blur_fade_kimg > 0 else 0
 
         # Gmain: Maximize logits for generated images.
-        if phase in ['Gmain', 'Greg_mvc', 'Gall']:
+        if phase in ['Gmain', 'Gall']:
             with torch.autograd.profiler.record_function('Gmain_forward'):
                 gen_img, _gen_ws, patch_params = self.run_G(gen_z, gen_c, gen_camera_angles, camera_angles_cond=gen_camera_angles_cond)
                 gen_logits = self.run_D(gen_img, gen_c, blur_sigma=blur_sigma, patch_params=patch_params, camera_angles=gen_camera_angles)

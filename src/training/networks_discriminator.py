@@ -220,7 +220,7 @@ class Discriminator(torch.nn.Module):
         if self.cfg.hyper_mod:
             hyper_mod_dim = 512
             self.hyper_mod_mapping = MappingNetwork(
-                z_dim=0, c_dim=self.scalar_enc.get_dim(), camera_cond=False, camera_cond_drop_p=0.0,
+                z_dim=0, c_dim=self.scalar_enc.get_dim(), camera_cond=False,
                 w_dim=hyper_mod_dim, num_ws=None, w_avg_beta=None, **mapping_kwargs)
         else:
             self.hyper_mod_mapping = None
@@ -245,7 +245,7 @@ class Discriminator(torch.nn.Module):
         if self.c_dim > 0 or not self.scalar_enc is None:
             self.head_mapping = MappingNetwork(
                 z_dim=0, c_dim=total_conditioning_dim, camera_cond=self.cfg.camera_cond, camera_cond_drop_p=self.cfg.camera_cond_drop_p,
-                w_dim=cmap_dim, num_ws=None, w_avg_beta=None, **mapping_kwargs)
+                camera_cond_noise_std=self.cfg.camera_cond_noise_std, w_dim=cmap_dim, num_ws=None, w_avg_beta=None, **mapping_kwargs)
         else:
             self.head_mapping = None
         self.b4 = DiscriminatorEpilogue(

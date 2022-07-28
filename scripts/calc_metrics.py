@@ -99,7 +99,7 @@ def parse_comma_separated_list(s):
 
 #----------------------------------------------------------------------------
 
-@hydra.main(config_path="../../configs/scripts", config_name="calc_metrics.yaml")
+@hydra.main(config_path="../configs/scripts", config_name="calc_metrics.yaml")
 def calc_metrics(cfg: DictConfig):
     dnnlib.util.Logger(should_flush=True)
 

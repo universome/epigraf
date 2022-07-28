@@ -5,7 +5,7 @@ ckpt:
   network_pkl: ~ # Network pickle filename
   networks_dir: ~ # Network pickles directory
   selection_metric: fid2k_full # Which metric to use when selecting the best ckpt?
-  reload_code: true
+  reload_code: false
 
 metrics: "fid50k_full" # Comma-separated list of metric names
 data: ~ # Path to the dataset to evaluate metrics against (directory or zip)

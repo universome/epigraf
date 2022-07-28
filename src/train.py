@@ -181,6 +181,7 @@ def main(cfg: DictConfig):
     c.G_kwargs.mapping_kwargs.num_layers = cfg.model.generator.map_depth
     c.G_kwargs.mapping_kwargs.camera_cond = cfg.model.generator.camera_cond
     c.G_kwargs.mapping_kwargs.camera_cond_drop_p = cfg.model.generator.camera_cond_drop_p
+    c.G_kwargs.mapping_kwargs.camera_cond_noise_std = cfg.model.generator.camera_cond_noise_std
     c.G_kwargs.mapping_kwargs.mean_camera_pose = mean_camera_pose
     # c.D_kwargs.mapping_kwargs.mean_camera_pose = mean_camera_pose
     c.D_kwargs.block_kwargs.freeze_layers = opts.freezed

@@ -11,6 +11,7 @@ generator:
   w_dim: 512
   camera_cond: false
   camera_cond_drop_p: 0.0
+  camera_cond_noise_std: 0.0
   camera_cond_spoof_p: 0.5
   map_depth: 2 # Mapping network depth
 discriminator:
@@ -30,6 +31,7 @@ discriminator:
   mbstd_group_size: 4 # Minibatch std group size
   camera_cond: false
   camera_cond_drop_p: 0.0
+  camera_cond_noise_std: 0.0
   hyper_mod: false
 
   optim:
