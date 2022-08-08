@@ -227,7 +227,7 @@ class Discriminator(torch.nn.Module):
             hyper_mod_dim = 0
 
         common_kwargs = dict(img_channels=self.img_channels, conv_clamp=conv_clamp)
-        total_conditioning_dim = c_dim + (0 if self.scalar_enc is None else self.scalar_enc.get_dim())
+        total_conditioning_dim = c_dim + (0 if (self.scalar_enc is None or not self.cfg.hyper_mod) else self.scalar_enc.get_dim())
         cur_layer_idx = 0
 
         for i, res in enumerate(self.block_resolutions):
@@ -261,15 +261,19 @@ class Discriminator(torch.nn.Module):
             patch_params_cond = torch.cat([patch_scales[:, [0]], patch_offsets], dim=1) # [batch_size, 3]
             misc.assert_shape(patch_params_cond, [batch_size, 3])
             patch_scale_embs = self.scalar_enc(patch_params_cond) # [batch_size, fourier_dim]
-            c = torch.cat([c, patch_scale_embs], dim=1) # [batch_size, c_dim + fourier_dim]
-            hyper_mod_c = self.hyper_mod_mapping(z=None, c=patch_scale_embs) # [batch_size, 512]
+            c = c if not self.cfg.hyper_mod else torch.cat([c, patch_scale_embs], dim=1) # [batch_size, c_dim + fourier_dim]
+
+            if self.cfg.hyper_mod:
+                hyper_mod_c = self.hyper_mod_mapping(z=None, c=patch_scale_embs) # [batch_size, 512]
+            else:
+                hyper_mod_c = None
 
         x = None
         for res in self.block_resolutions:
             block = getattr(self, f'b{res}')
             x = block(x, img, c=hyper_mod_c, **block_kwargs)
 
-        if self.c_dim > 0 or not self.scalar_enc is None:
+        if self.c_dim > 0 or self.cfg.hyper_mod:
             assert c.shape[1] > 0
         if not self.head_mapping is None:
             cmap = self.head_mapping(z=None, c=c, camera_angles=camera_angles) # [TODO]

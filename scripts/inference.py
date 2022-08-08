@@ -150,7 +150,7 @@ def generate_vis(cfg: DictConfig):
         images = images.permute(1, 0, 2, 3, 4) # [num_samples, num_traj_steps, c, h, w]
 
         for seed, grid in tqdm(list(zip(seeds, images)), desc='Saving'):
-            grid = TVF.resize(grid, size=(256, 256))
+            # grid = TVF.resize(grid, size=(256, 256))
             grid = make_grid(grid, nrow=len(trajectory))
             TVF.to_pil_image(grid).save(os.path.join(save_dir, f'seed-{seed:04d}.jpg'), q=95)
     else:
@@ -197,14 +197,14 @@ def sample_ws_from_seeds(G, seeds: List[int], cfg: DictConfig, device: str, num_
 #----------------------------------------------------------------------------
 
 def generate_density(cfg, G, ws):
-    coords = create_voxel_coords(cfg.voxel_res, cfg.voxel_origin, cfg.cube_size, 1) # [batch_size, voxel_res ** 3, 3]
-    coords = coords.to(ws.device) # [batch_size, voxel_res ** 3, 3]
+    coords = create_voxel_coords(cfg.volume_res, cfg.voxel_origin, cfg.cube_size, 1) # [batch_size, volume_res ** 3, 3]
+    coords = coords.to(ws.device) # [batch_size, volume_res ** 3, 3]
     densities = []
 
     for idx in tqdm(range(len(ws))):
         curr_ws = ws[[idx]] # [1, num_ws, w_dim]
-        sigma = G.synthesis.compute_densities(curr_ws, coords, max_batch_res=cfg.max_batch_res) # [batch_size, voxel_res ** 3, 1]
-        sigma = sigma.reshape(cfg.voxel_res, cfg.voxel_res, cfg.voxel_res).cpu().numpy() # [voxel_res ** 3]
+        sigma = G.synthesis.compute_densities(curr_ws, coords, max_batch_res=cfg.max_batch_res) # [batch_size, volume_res ** 3, 1]
+        sigma = sigma.reshape(cfg.volume_res, cfg.volume_res, cfg.volume_res).cpu().numpy() # [volume_res ** 3]
         densities.append(sigma)
 
     return np.stack(densities)
@@ -227,11 +227,11 @@ def create_voxel_coords(resolution=256, voxel_origin=[0.0, 0.0, 0.0], cube_size=
 
     # transform first 3 columns
     # to be the x, y, z coordinate
-    coords[:, 0] = (coords[:, 0] * voxel_size) + voxel_origin[2] # [voxel_res ** 3]
-    coords[:, 1] = (coords[:, 1] * voxel_size) + voxel_origin[1] # [voxel_res ** 3]
-    coords[:, 2] = (coords[:, 2] * voxel_size) + voxel_origin[0] # [voxel_res ** 3]
+    coords[:, 0] = (coords[:, 0] * voxel_size) + voxel_origin[2] # [volume_res ** 3]
+    coords[:, 1] = (coords[:, 1] * voxel_size) + voxel_origin[1] # [volume_res ** 3]
+    coords[:, 2] = (coords[:, 2] * voxel_size) + voxel_origin[0] # [volume_res ** 3]
 
-    return coords.repeat(batch_size, 1, 1) # [batch_size, voxel_res ** 3, 3]
+    return coords.repeat(batch_size, 1, 1) # [batch_size, volume_res ** 3, 3]
 
 #----------------------------------------------------------------------------
 

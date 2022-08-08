@@ -80,7 +80,7 @@ def save_image_grid(img, fname, drange, grid_size):
 def generate_videos(G: torch.nn.Module, z: torch.Tensor, c: torch.Tensor) -> torch.Tensor:
     num_videos = 9 if G.img_resolution >= 1024 else 16
     z, c = z[:num_videos], c[:num_videos], # [num_videos, z_dim], [num_videos, c_dim]
-    camera_cfg = dnnlib.EasyDict({'name': 'front_circle', 'num_frames': 32, 'yaw_diff': 0.5, 'pitch_diff': 0.3, 'use_zoom': True})
+    camera_cfg = dnnlib.EasyDict({'name': 'front_circle', 'num_frames': 32, 'yaw_diff': 0.5, 'pitch_diff': 0.3, 'fov_diff': 1.0})
     vis_cfg = dnnlib.EasyDict({'max_batch_res': 64, 'batch_size': 8})
     angles, fovs = generate_camera_angles(camera_cfg, default_fov=G.cfg.dataset.camera.fov) # [num_frames, 3], [num_frames]
     ws = G.mapping(z=z, c=c) # [num_videos, num_ws, w_dim]
@@ -136,9 +136,9 @@ def generate_camera_angles(camera, default_fov: Optional[float]=None):
     if camera.name == 'front_circle':
         assert not default_fov is None
         steps = np.linspace(0, 1, camera.num_frames)
-        pitch = camera.pitch_diff * np.cos(steps * 2 * np.pi) + np.pi / 2 # [num_frames]
+        pitch = np.pi / 2 + camera.pitch_diff * np.cos(steps * 2 * np.pi) # [num_frames]
         yaw = camera.yaw_diff * np.sin(steps * 2 * np.pi) # [num_frames]
-        fovs = (default_fov + np.sin(steps * 2 * np.pi)) if camera.use_zoom else np.array([default_fov] * camera.num_frames) # [num_frames]
+        fovs = default_fov + camera.fov_diff * np.sin(steps * 2 * np.pi) # [num_frames]
         angles = np.stack([yaw, pitch, np.zeros(camera.num_frames)], axis=1) # [num_frames, 3]
     elif camera.name == 'points':
         angles = np.stack([camera.yaws, np.ones(len(camera.yaws)) * camera.pitch, np.zeros(len(camera.yaws))], axis=1) # [num_angles, 3]
