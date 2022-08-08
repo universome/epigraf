@@ -236,6 +236,10 @@ def main(cfg: DictConfig):
             verbose=False,
         ), f"Please, increase the scale: {cfg.model.generator.tri_plane.scale}"
         print('Done!')
+    elif cfg.model.name == 'inr-gan':
+        del c.G_kwargs.channel_base
+        del c.G_kwargs.channel_max
+        c.G_kwargs.class_name = 'training.networks_inr_gan.Generator'
     elif cfg.model.name in ['stylegan3-t', 'stylegan3-r']:
         c.G_kwargs.class_name = 'training.networks_stylegan3.Generator'
         c.G_kwargs.magnitude_ema_beta = 0.5 ** (c.batch_size / (20 * 1e3))

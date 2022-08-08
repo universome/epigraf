@@ -1,0 +1,35 @@
+# @package _group_
+
+name: inr-gan
+generator:
+  num_ray_steps: 16 # Amount of evaluations per ray
+
+  # An activation to clamp density
+  # Somehow, in our early experiments it was very important...
+  clamp_mode: softplus
+
+  # Similar to NeRF, we add noise to evaluations
+  nerf_noise_std_init: 1.0
+  nerf_noise_kimg_growth: 5000
+
+  # Should we use spatial noise in StyleGAN2?
+  # Very strangely, we found this to be important in our early experiments...
+  use_noise: true
+
+  inr:
+    output_channels: 4 # We predict RGB + density
+    coord_dim: 3 # Number of input coordinatates: x', y', z' and 1/r (see the NeRF++ paper)
+    num_blocks: 4 # Number of fully-connected blocks
+    cbase: 32768 # Controls the dimensionality
+    cmax: 256 # Maximum number of channels in the network (it's pretty small)
+    num_fp16_blocks: 0 # Should we use fp16 for last blocks?
+    fmm: {enabled: false, rank: 3, activation: demod} # Parameters for FMM (never used to save parameters)
+    posenc_period_len: 128.0 # Fourier features period length
+
+discriminator:
+  # Should we use patch parameters modulation for the discriminator?
+  hyper_mod: true
+
+loss_kwargs:
+  blur_init_sigma: 10
+  blur_fade_kimg: 200

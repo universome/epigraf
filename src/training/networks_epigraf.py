@@ -11,7 +11,7 @@ from omegaconf import DictConfig
 
 from src.training.networks_stylegan2 import SynthesisBlock
 from src.training.networks_stylegan3 import SynthesisNetwork as SG3SynthesisNetwork
-from src.training.networks_inr_gan import SynthesisNetwork as INRSynthesisNetwork
+from src.training.networks_inr_gan import INR, nerf_renderer
 from src.training.layers import (
     FullyConnectedLayer,
     MappingNetwork,
@@ -59,28 +59,6 @@ def tri_plane_renderer(x: torch.Tensor, coords: torch.Tensor, ray_d_world: torch
     x = F.grid_sample(x, grid=coords_2d, mode='bilinear', align_corners=True).view(batch_size, 3, feat_dim, num_points) # [batch_size, 3, feat_dim, num_points]
     x = x.permute(0, 1, 3, 2) # [batch_size, 3, num_points, feat_dim]
     x = mlp(x, coords, ray_d_world) # [batch_size, num_points, out_dim]
-
-    return x
-
-#----------------------------------------------------------------------------
-
-@misc.profiled_function
-def nerf_renderer(coords: torch.Tensor, ws: torch.Tensor, nerf: INRSynthesisNetwork, ray_d_world: torch.Tensor) -> torch.Tensor:
-    """
-    Computes RGB\sigma values from a NeRF model
-
-    coords: [batch_size, h * w * num_steps, 3]
-    nerf: NeRF model
-    ray_d_world: [batch_size, h * w, 3] --- ray directions in the world coordinate system
-    """
-    batch_size, num_points, _ = coords.shape
-    misc.assert_shape(ws, [batch_size, nerf.num_ws, nerf.w_dim])
-    misc.assert_shape(coords, [batch_size, None, None])
-    misc.assert_shape(ray_d_world, [batch_size, num_points, 3])
-
-    # We do not use ray_d_world for now. TODO: fix this.
-    x = nerf(coords.permute(0, 2, 1), ws, ray_d_world=None) # [batch_size, out_dim, num_points]
-    x = x.permute(0, 2, 1) # [batch_size, num_points, out_dim]
 
     return x
 
@@ -276,7 +254,7 @@ class SynthesisNetwork(torch.nn.Module):
         if self.cfg.bg_model.type in (None, "plane"):
             self.bg_model = None
         elif self.cfg.bg_model.type == "sphere":
-            self.bg_model = INRSynthesisNetwork(self.cfg.bg_model, w_dim)
+            self.bg_model = INR(self.cfg.bg_model, w_dim)
             self.num_ws += self.bg_model.num_ws
         else:
             raise NotImplementedError(f"Uknown BG model type: {self.bg_model}")

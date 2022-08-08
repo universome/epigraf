@@ -258,7 +258,10 @@ def compute_camera_origins(angles: torch.Tensor, radius: float) -> torch.Tensor:
 #----------------------------------------------------------------------------
 
 def compute_cam2world_matrix(camera_angles: torch.Tensor, radius: float):
-    """Takes in the direction the camera is pointing and the camera origin and returns a cam2world matrix."""
+    """
+    Takes in the direction the camera is pointing and the camera origin and returns a cam2world matrix.
+    camera_angles should be provided in the "yaw/pitch/roll" format — [batch_size, 3]
+    """
     camera_origins = compute_camera_origins(camera_angles, radius) # [batch_size, 3]
     forward_vector = normalize(-camera_origins) # [batch_size, 3]
     batch_size = forward_vector.shape[0]
