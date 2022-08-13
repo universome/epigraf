@@ -13,6 +13,7 @@ from omegaconf import DictConfig
 import torchvision as tv
 from torchvision.utils import make_grid
 import torchvision.transforms.functional as TVF
+from PIL import Image
 from tqdm import tqdm
 
 from src.training.inference_utils import generate_trajectory, generate, generate_camera_angles
@@ -124,7 +125,12 @@ def generate_vis(cfg: DictConfig):
             save_path = os.path.join(save_dir, f'seeds-{grid_seeds[0]:04d}-to-{grid_seeds[-1]:04d}.mp4')
             video_frames = torch.stack([make_grid(g, nrow=cfg.vis.nrow) for g in grid_videos]) # [t, c, gh, gw]
             video = (video_frames * 255).to(torch.uint8).permute(0, 2, 3, 1) # [T, H, W, C]
-            tv.io.write_video(save_path, video, fps=cfg.vis.fps, video_codec='h264', options={'crf': '10'})
+            save_path = os.path.join(save_dir, f'seeds-{grid_seeds[0]:04d}-to-{grid_seeds[-1]:04d}.{"gif" if cfg.vis.as_gif else "mp4"}')
+            if cfg.vis.as_gif:
+                frames = [Image.fromarray(x, 'RGB') for x in video.numpy()]
+                frames[0].save(save_path, quality=75, save_all=True, append_images=frames[1:], duration=1000/cfg.vis.fps, loop=0)
+            else:
+                tv.io.write_video(save_path, video, fps=cfg.vis.fps, video_codec='h264', options={'crf': '10'})
     elif cfg.vis.name == 'interp_density':
         ws = sample_ws_from_seeds(G, seeds, cfg, device, cfg.num_interp_steps) # [num_interp_steps, num_videos, num_ws, w_dim]
         ws = ws.reshape(cfg.num_interp_steps * ws.shape[1], *ws.shape[2:]) # [num_interp_steps * num_videos, num_ws, w_dim]

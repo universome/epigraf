@@ -4,3 +4,4 @@ name: video_grid
 nrow: 4
 num_videos_per_grid: 16
 fps: 30
+as_gif: false

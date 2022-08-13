@@ -50,9 +50,9 @@ def tri_plane_renderer(x: torch.Tensor, coords: torch.Tensor, ray_d_world: torch
     x = x.view(batch_size * 3, feat_dim, h, w) # [batch_size * 3, feat_dim, h, w]
     coords = coords / scale # [batch_size, num_points, 3]
     coords_2d = torch.stack([
-        coords[..., [0, 1]], # x/y plane
-        coords[..., [0, 2]], # x/z plane
-        coords[..., [1, 2]], # y/z plane
+        coords[..., [0, 1]], # z/y plane
+        coords[..., [0, 2]], # z/x plane
+        coords[..., [1, 2]], # y/x plane
     ], dim=1) # [batch_size, 3, num_points, 2]
     coords_2d = coords_2d.view(batch_size * 3, 1, num_points, 2) # [batch_size * 3, 1, num_points, 2]
     # assert ((coords_2d.min().item() >= -1.0 - 1e-8) and (coords_2d.max().item() <= 1.0 + 1e-8))
