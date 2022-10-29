@@ -11,9 +11,9 @@
 Code release progress:
 - [x] Training/inference code
 - [x] Installation and running instructions
-- [ ] Megascans rendering scripts & instructions
+- [x] Megascans rendering scripts & instructions
+- [x] Datasets
 - [ ] Pre-trained checkpoints
-- [ ] Datasets
 - [ ] Jupyter notebook demos
 
 ## Installation
@@ -36,18 +36,23 @@ pip install setuptools==59.5.0
 
 ## Data
 
-Data should be stored in a zip archive, the exact structure is not important, the script will use all the found images.
-For FFHQ, we do not use any pre-processing.
-For the Cats dataset, we use the same data processing as [GRAM](https://yudeng.github.io/GRAM/).
-Put your datasets into `data/` directory.
+### Real data
 
+For FFHQ and Cats, we use the camera poses provided by [GRAM](https://yudeng.github.io/GRAM/) --- you can download them with their provided links.
+For Cats, we used exactly the same dataset as GRAM, we also upload it [here](https://disk.yandex.ru/d/FXwuU1uWTLwOmQ) (together with our pre-processed camera poses).
+For FFHQ, in contrast to some previous works (e.g., EG3D or GRAM), we do not re-crop it and use [the original one](https://github.com/NVlabs/ffhq-dataset) (but with the camera poses provided for the cropped version by GRAM).
+
+### Megascans
+
+We give the links to the Megascans datasets, as well as the rendering code and documentation on how to use it in a [separate repo](https://github.com/universome/megascans-rendering).
+
+### How to pre-process the datasets
+
+Data should be stored in a zip archive, the exact structure is not important, the script will use all the found images.
+Put your datasets into `data/` directory.
 If you want to train with camera pose conditioning (either in Generator or Discriminator), then create a `dataset.json` with `camera_angles` dict of `"<FILE_NAME>": [yaw, pitch, roll]` key/values.
 Also, use `model.discriminator.camera_cond=true model.discriminator.camera_cond_drop_p=0.5` command line arguments (or simply override them in the config).
 If you want to train on a custom dataset, then create the config for it like `configs/dataset/my_dataset.yaml`, specifying the necessary parameters (see other configs to get the idea on what should be specified).
-
-<!-- Dataset links:
-- [Megascans Plants 256x256](https://www.dropbox.com/s/078gy1govyyoye9/plants_256.zip?dl=0)
-- [Megascans Food 256x256](https://www.dropbox.com/s/lekkx0agd4fjaaa/food_256.zip?dl=0) -->
 
 ## Training
 
