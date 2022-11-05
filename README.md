@@ -14,7 +14,21 @@ Code release progress:
 - [x] Megascans rendering scripts & instructions
 - [x] Datasets
 - [ ] Pre-trained checkpoints
+- [ ] Fix the problem with eye-glasses on FFHQ
 - [ ] Jupyter notebook demos
+
+Limitations / known problems:
+- Eye-glasses are synthesized as carved on the face due to not modeling specular effects for them (2D upsampler-based generators, like EG3D, do this for high-res outputs through the upsampler) and using the classical NeRF renderer. This is a known problem and we are working on a fix.
+- Low-resolution artifacts due to patch-wise training and producing tri-planes in the dataset resolution and not higher.
+- Patch-wise training under-performs compared to full-resolution training for 2D generators
+
+Please, create an issue if you'll find any problems, bugs or have any questions with our repo.
+
+Checkpoints:
+- [x] FFHQ 512x512: [FID: 9.87 | 767 MB](https://disk.yandex.ru/d/XJ0k9-kQyHouwQ)
+- [ ] FFHQ 256x256
+- [ ] Megascans Plants 256x256
+- [ ] Megascans Food 256x256
 
 ## Installation
 
@@ -32,6 +46,20 @@ AttributeError: module 'distutils' has no attribute 'version'
 in which case you would need to [install an older verion](https://github.com/pytorch/pytorch/issues/69894#issuecomment-1080635462) of `setuptools`:
 ```
 pip install setuptools==59.5.0
+```
+
+## Evaluation
+
+Download the checkpoint above and save it into `checkpoints/model.pkl`.
+To generate the videos, run:
+```
+python scripts/inference.py hydra.run.dir=. ckpt.network_pkl=$(eval pwd)/checkpoints/model.pkl vis=video_grid camera=front_circle output_dir=results num_seeds=9
+```
+You can control the sampling resolution via the `img_resolution` argument.
+
+To compute FID against the `/path/to/dataset.zip` dataset, run:
+```
+python scripts/calc_metrics.py hydra.run.dir=. ckpt.network_pkl=$(eval pwd)/checkpoints/model.pkl ckpt.reload_code=false img_resolution=512 metrics=fid50k_full data=/path/to/dataset.zip gpus=4 verbose=true
 ```
 
 ## Data
