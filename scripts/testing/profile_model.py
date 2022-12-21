@@ -22,7 +22,7 @@ DEVICE = 'cuda'
 
 def instantiate_G(cfg: DictConfig, use_grad: bool=False, train_mode: bool=False) -> nn.Module:
     G_kwargs = dnnlib.EasyDict(class_name=None, cfg=cfg.model.generator, z_dim=512, w_dim=512, mapping_kwargs=dnnlib.EasyDict())
-    G_kwargs.channel_base = cfg.training.cbase
+    G_kwargs.channel_base = cfg.model.generator.cbase
     G_kwargs.channel_max = cfg.model.generator.cmax
     G_kwargs.mapping_kwargs.num_layers = cfg.model.generator.map_depth
 
