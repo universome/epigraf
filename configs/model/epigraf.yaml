@@ -21,7 +21,7 @@ generator:
     res: 512 # Resolution for the tri-plane. It's higher than in EG3D since we train in high-res directly
     feat_dim: 32 # Dimensionality of the tri-plane
     fp32: true # Should we use it in fp32 only?
-    view_hid_dim: 0 # Use view direction conditining? (never used)
+    has_view_cond: false # Use view direction conditining? (never used)
     posenc_period_len: 0 # Should we use coordinate conditioning? (never used)
 
     # Parameters of the tri-plane MLP

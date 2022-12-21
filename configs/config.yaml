@@ -4,7 +4,7 @@ defaults:
 
   # Import dataset common and overwrite it with the custom one
   - dataset/base.yaml
-  - dataset: ffhq
+  - dataset: ffhq_posed
 
   - training/base.yaml
   - training: patch_beta

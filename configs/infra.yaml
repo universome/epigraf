@@ -12,7 +12,7 @@ slurm: false
 
 git_hash: {_target_: src.infra.utils.get_git_hash}
 exp_suffix: no_spec
-experiment_name: ${dataset.name}_${model.name}_${training.name}_${exp_suffix}
+experiment_name: ${dataset.name}_${model.name}_${training.name}_gamma${training.gamma}_${exp_suffix}
 experiment_name_with_hash: ${experiment_name}-${git_hash}
 experiments_root_dir: experiments
 experiment_dir: ${env.project_path}/${experiments_root_dir}/${experiment_name_with_hash}
