@@ -89,8 +89,11 @@ class TriPlaneMLP(nn.Module):
             self.model = nn.Sequential(*layers)
 
             if self.cfg.tri_plane.has_view_cond:
-                self.ray_dir_enc = ScalarEncoder1d(coord_dim=3, const_emb_dim=0, x_multiplier=64, use_cos=False)
-                self.color_network = FullyConnectedLayer(backbone_out_dim - 1 + self.ray_dir_enc.get_dim(), self.out_dim, activation='linear')
+                self.ray_dir_enc = ScalarEncoder1d(coord_dim=3, const_emb_dim=0, x_multiplier=0, use_cos=False, use_raw=True)
+                self.color_network = nn.Sequential(
+                    FullyConnectedLayer(backbone_out_dim - 1 + self.ray_dir_enc.get_dim(), 32, activation='lrelu'),
+                    FullyConnectedLayer(32, self.out_dim, activation='linear'),
+                )
             else:
                 self.ray_dir_enc = None
                 self.color_network = None
@@ -112,7 +115,6 @@ class TriPlaneMLP(nn.Module):
         x = x.view(batch_size, num_points, self.dims[-1]) # [batch_size, num_points, backbone_out_dim]
 
         if not self.color_network is None:
-            # Encode only yaw/pitch
             num_pixels, view_dir_emb = ray_d_world.shape[1], self.ray_dir_enc.get_dim()
             num_steps = num_points // num_pixels
             ray_dir_embs = self.ray_dir_enc(ray_d_world.reshape(-1, 3)) # [batch_size * h * w, view_dir_emb]
