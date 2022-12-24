@@ -89,7 +89,7 @@ class TriPlaneMLP(nn.Module):
             self.model = nn.Sequential(*layers)
 
             if self.cfg.tri_plane.has_view_cond:
-                self.ray_dir_enc = ScalarEncoder1d(coord_dim=3, const_emb_dim=0, x_multiplier=0, use_cos=False, use_raw=True)
+                self.ray_dir_enc = ScalarEncoder1d(coord_dim=3, const_emb_dim=0, x_multiplier=8, use_cos=False, use_raw=True)
                 self.color_network = nn.Sequential(
                     FullyConnectedLayer(backbone_out_dim - 1 + self.ray_dir_enc.get_dim(), 32, activation='lrelu'),
                     FullyConnectedLayer(32, self.out_dim, activation='linear'),
