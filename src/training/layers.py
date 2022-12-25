@@ -131,7 +131,8 @@ class MappingNetwork(torch.nn.Module):
         if not self.camera_scalar_enc is None:
             # Using only yaw and pitch for conditioning (roll is always zero)
             camera_angles = camera_angles[:, [0, 1]] # [batch_size, 2]
-            camera_angles = camera_angles + self.camera_cond_noise_std * torch.randn_like(camera_angles) # [batch_size, 2]
+            if self.training and self.camera_cond_noise_std > 0:
+                camera_angles = camera_angles + self.camera_cond_noise_std * torch.randn_like(camera_angles) * camera_angles.std(dim=0, keepdim=True) # [batch_size, 2]
             camera_angles = camera_angles.sign() * ((camera_angles.abs() % (2.0 * np.pi)) / (2.0 * np.pi)) # [batch_size, 2]
             camera_angles_embs = self.camera_scalar_enc(camera_angles) # [batch_size, fourier_dim]
             camera_angles_embs = F.dropout(camera_angles_embs, p=self.camera_cond_drop_p, training=self.training) # [batch_size, fourier_dim]
