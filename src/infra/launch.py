@@ -41,7 +41,9 @@ def main(cfg: DictConfig):
 
     is_running_from_scratch = True
 
-    if cfg.training.resume == "latest" and os.path.isdir(cfg.experiment_dir) and os.path.isfile(training_cmd_save_path) and os.path.isfile(cfg_save_path):
+    if cfg.training.resume == "latest":
+        assert os.path.isdir(cfg.experiment_dir) and os.path.isfile(training_cmd_save_path) and os.path.isfile(cfg_save_path), \
+            "Was asked to resume the experiment, but couldn't find it."
         is_running_from_scratch = False
         if not quiet:
             print("We are going to resume the training and the experiment already exists. " \

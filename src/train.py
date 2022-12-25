@@ -211,7 +211,7 @@ def main(cfg: DictConfig):
         assert cfg.dataset.camera.dist == 'custom', f"To condition D on real camera angles, they should be available in the dataset."
 
     # Base configuration.
-    c.ema_kimg = c.batch_size * 10 / 32
+    c.ema_kimg = c.batch_size * cfg.model.generator.ema_multiplier
     if cfg.model.name == 'stylegan2':
         c.G_kwargs.class_name = 'training.networks_stylegan2.Generator'
         c.loss_kwargs.style_mixing_prob = 0.9 # Enable style mixing regularization.
@@ -277,12 +277,16 @@ def main(cfg: DictConfig):
             c.resume_whole_state = True
             print(f'Will resume training from {ckpts[-1]}')
         else:
-            warnings.warn("Was requested to continue training, but cannot found any checkpoints. Please remove `training.resume=latest` argument.")
+            warnings.warn("Was requested to continue training, but couldn't find any checkpoints. Please remove `training.resume=latest` argument.")
     elif opts.resume is not None:
         c.resume_pkl = opts.resume
-        c.ada_kimg = 100 # Make ADA react faster at the beginning.
-        c.ema_rampup = None # Disable EMA rampup.
-        c.cfg.model.loss_kwargs.blur_init_sigma = 0 # Disable blur rampup.
+        if opts.resume_only_G:
+            c.ada_kimg = 100 # Make ADA react faster at the beginning.
+            c.ema_rampup = None # Disable EMA rampup.
+            c.cfg.model.loss_kwargs.blur_init_sigma = 0 # Disable blur rampup.
+        else:
+            print('Will load whole state from {c.resume_pkl}')
+            c.resume_whole_state = True
 
     # Performance-related toggles.
     if opts.fp32:

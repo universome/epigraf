@@ -8,6 +8,7 @@ gamma: auto # R1 regularization weight
 use_labels: false # Train conditional model
 mirror: true # Enable dataset x-flips
 resume: latest # Resume from given network pickle
+resume_only_G: false # Should we re-init D and optimizers when fine-tuning?
 freezed: 0 # Freeze first layers of D
 
 # Misc hyperparameters.
