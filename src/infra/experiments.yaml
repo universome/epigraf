@@ -1,0 +1,38 @@
+default:
+  common_args: {}
+  experiments:
+    default: {}
+
+patchwise_stylegan2:
+  common_args:
+    training: patchwise
+    training.patch.max_scale: 1.0
+    training.patch.anneal_kimg: 10000
+    training.metrics: fid50k_full
+    model: stylegan2
+    model.loss_kwargs.pl_weight: 0
+  experiments:
+    p64-min0.999_anneal10k:
+      training.patch.min_scale_trg: 0.999
+      training.patch.resolution: 64
+    p64-min0.5_anneal10k:
+      training.patch.min_scale_trg: 0.5
+      training.patch.resolution: 64
+    p64-min0.25_anneal10k:
+      training.patch.min_scale_trg: 0.5
+      training.patch.resolution: 64
+    p128-min0.9_anneal10k:
+      training.patch.min_scale_trg: 0.9
+      training.patch.resolution: 128
+    p128-min0.5_anneal10k:
+      training.patch.min_scale_trg: 0.5
+      training.patch.resolution: 128
+    p64-min0.9_anneal10k:
+      training.patch.min_scale_trg: 0.9
+      training.patch.resolution: 64
+    p64-min0.75_anneal10k:
+      training.patch.min_scale_trg: 0.75
+      training.patch.resolution: 64
+    p128-min0.75_anneal10k:
+      training.patch.min_scale_trg: 0.75
+      training.patch.resolution: 128

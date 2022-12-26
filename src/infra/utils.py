@@ -1,5 +1,4 @@
 import os
-import math
 import shutil
 import subprocess
 from distutils.dir_util import copy_tree
@@ -149,11 +148,6 @@ def product(values):
 
 def divide(dividend, divisor):
     return dividend / divisor
-
-#----------------------------------------------------------------------------
-
-def log2_divide(dividend, divisor):
-    return int(math.log2(dividend / divisor))
 
 #----------------------------------------------------------------------------
 

@@ -138,8 +138,7 @@ def training_loop(
             z = torch.empty([cfg.training.test_batch_gpu, G.z_dim], device=device)
             c = torch.empty([cfg.training.test_batch_gpu, G.c_dim], device=device)
             camera_angles = torch.empty([cfg.training.test_batch_gpu, 3], device=device) # [batch_size, 3]
-            img = misc.print_module_summary(G, [z[[0]], c[[0]]], module_kwargs={'camera_angles': camera_angles[[0]]}) # [1, c, h, w]
-            img = img.repeat(cfg.training.test_batch_gpu, 1, 1, 1) # [batch_size, c, h, w]
+            img = misc.print_module_summary(G, [z, c], module_kwargs={'camera_angles': camera_angles})
             if loss_kwargs.cfg.training.patch.enabled:
                 img = img[:, :, :loss_kwargs.cfg.training.patch.resolution, :loss_kwargs.cfg.training.patch.resolution] # [batch_size, c, patch_h, patch_w]
             misc.print_module_summary(D, [img, c], module_kwargs={
@@ -282,7 +281,7 @@ def training_loop(
             all_gen_c = [training_set.get_label(i) for i in gen_cond_sample_idx] # [num_phases * batch_size]
             all_gen_c = torch.from_numpy(np.stack(all_gen_c)).pin_memory().to(device) # [num_phases * batch_size]
             all_gen_c = [phase_gen_c.split(batch_gpu) for phase_gen_c in all_gen_c.split(batch_size)] # [num_phases, batch_size // batch_gpu, batch_gpu]
-            if cfg.dataset.camera.dist == 'custom':
+            if cfg.dataset.sampling.dist == 'custom':
                 all_gen_camera_angles = [training_set.get_camera_angles(i) for i in gen_cond_sample_idx] # [N, 3]
                 all_gen_camera_angles = torch.from_numpy(np.stack(all_gen_camera_angles)).pin_memory().to(device) # [N, 3]
             else:

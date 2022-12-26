@@ -120,7 +120,7 @@ def init_dataset(cfg: DictConfig):
         dataset_kwargs.use_labels = dataset.has_labels # Be explicit about labels.
         dataset_kwargs.max_size = len(dataset) # Be explicit about dataset size.
 
-        if cfg.dataset.camera.dist == 'custom':
+        if cfg.dataset.sampling.dist == 'custom':
             print('Validating camera poses in the dataset...', end='')
             camera_angles = torch.from_numpy(np.array([dataset.get_camera_angles(i) for i in range(len(dataset))]))
             mean_camera_pose = camera_angles.mean(axis=0) # [3]
@@ -132,7 +132,7 @@ def init_dataset(cfg: DictConfig):
             assert not torch.any(camera_angles[:, [1]] > np.pi), f"Number of broken pitch angles (too large): {torch.sum(camera_angles[:, [1]] > np.pi)}"
             print('done!')
         else:
-            mean_camera_pose = torch.tensor([cfg.dataset.camera.horizontal_mean, cfg.dataset.camera.vertical_mean, 0.0]) # [3]
+            mean_camera_pose = torch.tensor([cfg.dataset.sampling.horizontal_mean, cfg.dataset.sampling.vertical_mean, 0.0]) # [3]
 
         return dataset_kwargs, mean_camera_pose
     except IOError as err:
@@ -181,13 +181,12 @@ def main(cfg: DictConfig):
     c.G_kwargs.mapping_kwargs.num_layers = cfg.model.generator.map_depth
     c.G_kwargs.mapping_kwargs.camera_cond = cfg.model.generator.camera_cond
     c.G_kwargs.mapping_kwargs.camera_cond_drop_p = cfg.model.generator.camera_cond_drop_p
-    c.G_kwargs.mapping_kwargs.camera_cond_noise_std = cfg.model.generator.camera_cond_noise_std
     c.G_kwargs.mapping_kwargs.mean_camera_pose = mean_camera_pose
     # c.D_kwargs.mapping_kwargs.mean_camera_pose = mean_camera_pose
     c.D_kwargs.block_kwargs.freeze_layers = opts.freezed
     c.D_kwargs.epilogue_kwargs.mbstd_group_size = cfg.model.discriminator.mbstd_group_size
     c.loss_kwargs.r1_gamma = (0.0002 * (cfg.dataset.resolution ** 2) / opts.batch_size) if opts.gamma == 'auto' else opts.gamma
-    c.G_opt_kwargs.lr = cfg.model.generator.optim.lr
+    c.G_opt_kwargs.lr = cfg.model.generator.optim.get('lr', 0.002 if cfg.model.name == 'stylegan2' else 0.0025)
     c.D_opt_kwargs.lr = cfg.model.discriminator.optim.lr
     c.metrics = [] if opts.metrics is None else opts.metrics.split(',')
     c.total_kimg = opts.kimg
@@ -207,11 +206,8 @@ def main(cfg: DictConfig):
     if any(not metric_main.is_valid_metric(metric) for metric in c.metrics):
         raise ValueError('\n'.join(['--metrics can only contain the following values:'] + metric_main.list_valid_metrics()))
 
-    if cfg.model.discriminator.camera_cond:
-        assert cfg.dataset.camera.dist == 'custom', f"To condition D on real camera angles, they should be available in the dataset."
-
     # Base configuration.
-    c.ema_kimg = c.batch_size * cfg.model.generator.ema_multiplier
+    c.ema_kimg = c.batch_size * 10 / 32
     if cfg.model.name == 'stylegan2':
         c.G_kwargs.class_name = 'training.networks_stylegan2.Generator'
         c.loss_kwargs.style_mixing_prob = 0.9 # Enable style mixing regularization.
@@ -228,18 +224,14 @@ def main(cfg: DictConfig):
 
         print('Validating that the vieweing frustum is inside the cube...', end='')
         assert validate_frustum(
-            fov=cfg.dataset.camera.fov,
-            near=cfg.dataset.camera.ray_start,
-            far=cfg.dataset.camera.ray_end,
-            radius=cfg.dataset.camera.radius,
+            fov=cfg.dataset.sampling.fov,
+            near=cfg.dataset.sampling.ray_start,
+            far=cfg.dataset.sampling.ray_end,
+            radius=cfg.dataset.sampling.radius,
             scale=cfg.dataset.get('cube_scale', 1.0),
             verbose=False,
         ), f"Please, increase the scale: {cfg.model.generator.tri_plane.scale}"
         print('Done!')
-    elif cfg.model.name == 'inr-gan':
-        del c.G_kwargs.channel_base
-        del c.G_kwargs.channel_max
-        c.G_kwargs.class_name = 'training.networks_inr_gan.Generator'
     elif cfg.model.name in ['stylegan3-t', 'stylegan3-r']:
         c.G_kwargs.class_name = 'training.networks_stylegan3.Generator'
         c.G_kwargs.magnitude_ema_beta = 0.5 ** (c.batch_size / (20 * 1e3))
@@ -277,16 +269,12 @@ def main(cfg: DictConfig):
             c.resume_whole_state = True
             print(f'Will resume training from {ckpts[-1]}')
         else:
-            warnings.warn("Was requested to continue training, but couldn't find any checkpoints. Please remove `training.resume=latest` argument.")
+            warnings.warn("Was requested to continue training, but cannot found any checkpoints. Please remove `training.resume=latest` argument.")
     elif opts.resume is not None:
         c.resume_pkl = opts.resume
-        if opts.resume_only_G:
-            c.ada_kimg = 100 # Make ADA react faster at the beginning.
-            c.ema_rampup = None # Disable EMA rampup.
-            c.cfg.model.loss_kwargs.blur_init_sigma = 0 # Disable blur rampup.
-        else:
-            print('Will load whole state from {c.resume_pkl}')
-            c.resume_whole_state = True
+        c.ada_kimg = 100 # Make ADA react faster at the beginning.
+        c.ema_rampup = None # Disable EMA rampup.
+        c.cfg.model.loss_kwargs.blur_init_sigma = 0 # Disable blur rampup.
 
     # Performance-related toggles.
     if opts.fp32:

@@ -41,9 +41,7 @@ def main(cfg: DictConfig):
 
     is_running_from_scratch = True
 
-    if cfg.training.resume == "latest":
-        assert os.path.isdir(cfg.experiment_dir) and os.path.isfile(training_cmd_save_path) and os.path.isfile(cfg_save_path), \
-            "Was asked to resume the experiment, but couldn't find it."
+    if cfg.training.resume == "latest" and os.path.isdir(cfg.experiment_dir) and os.path.isfile(training_cmd_save_path) and os.path.isfile(cfg_save_path):
         is_running_from_scratch = False
         if not quiet:
             print("We are going to resume the training and the experiment already exists. " \
@@ -97,8 +95,9 @@ def main(cfg: DictConfig):
 
             # Submitting the slurm job
             env_args_str = ','.join([f'{k}={v}' for k, v in cfg.env_args.items()])
+            qos_arg_str = '--account conf-eccv-2022.03.14-wonkap' if cfg.use_qos else ''
             output_file_arg_str = f'--output {cfg.experiment_dir}/slurm_{i}.log'
-            submit_job_cmd = f'sbatch {cfg.sbatch_args_str} {output_file_arg_str} --export=ALL,{env_args_str} {deps_args_str} src/infra/slurm_job_proxy.sh'
+            submit_job_cmd = f'sbatch {cfg.sbatch_args_str} {output_file_arg_str} {qos_arg_str} --export=ALL,{env_args_str} {deps_args_str} src/infra/slurm_job_proxy.sh'
 
             if cfg.print_only:
                 print(submit_job_cmd)

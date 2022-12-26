@@ -68,24 +68,19 @@ class MappingNetwork(torch.nn.Module):
         c_dim,                         # Conditioning label (C) dimensionality, 0 = no label.
         w_dim,                         # Intermediate latent (W) dimensionality.
         num_ws,                        # Number of intermediate latents to output, None = do not broadcast.
-        num_layers            = 2,        # Number of mapping layers.
-        embed_features        = None,     # Label embedding dimensionality, None = same as w_dim.
-        layer_features        = None,     # Number of intermediate features in the mapping layers, None = same as w_dim.
-        activation            = 'lrelu',  # Activation function: 'relu', 'lrelu', etc.
-        lr_multiplier         = 0.01,     # Learning rate multiplier for the mapping layers.
-        w_avg_beta            = 0.998,    # Decay for tracking the moving average of W during training, None = do not track.
-        camera_cond           = False,    # Camera conditioning
-        camera_raw_scalars    = False,    # Should we use raw camera angles as input or preprocess them with Fourier Features?
-        camera_cond_drop_p    = 0.0,      # Camera conditioning dropout
-        camera_cond_noise_std = 0.0,      # Camera conditioning noise std.
-        mean_camera_pose      = None,     # Average camera pose for use at test time.
+        num_layers         = 2,        # Number of mapping layers.
+        embed_features     = None,     # Label embedding dimensionality, None = same as w_dim.
+        layer_features     = None,     # Number of intermediate features in the mapping layers, None = same as w_dim.
+        activation         = 'lrelu',  # Activation function: 'relu', 'lrelu', etc.
+        lr_multiplier      = 0.01,     # Learning rate multiplier for the mapping layers.
+        w_avg_beta         = 0.998,    # Decay for tracking the moving average of W during training, None = do not track.
+        camera_cond        = False,    # Camera conditioning
+        camera_cond_drop_p = 0.0,      # Camera conditioning dropout
+        mean_camera_pose   = None,     # Average camera pose for use at test time.
     ):
         super().__init__()
         if camera_cond:
-            if camera_raw_scalars:
-                self.camera_scalar_enc = ScalarEncoder1d(coord_dim=2, x_multiplier=0.0, const_emb_dim=0, use_raw=True)
-            else:
-                self.camera_scalar_enc = ScalarEncoder1d(coord_dim=2, x_multiplier=64.0, const_emb_dim=0)
+            self.camera_scalar_enc = ScalarEncoder1d(coord_dim=2, x_multiplier=0.0, const_emb_dim=0, use_raw=True)
             c_dim = c_dim + self.camera_scalar_enc.get_dim()
             assert self.camera_scalar_enc.get_dim() > 0
         else:
@@ -98,7 +93,6 @@ class MappingNetwork(torch.nn.Module):
         self.num_layers = num_layers
         self.w_avg_beta = w_avg_beta
         self.camera_cond_drop_p = camera_cond_drop_p
-        self.camera_cond_noise_std = camera_cond_noise_std
 
         if embed_features is None:
             embed_features = w_dim
@@ -129,10 +123,10 @@ class MappingNetwork(torch.nn.Module):
             camera_angles = self.mean_camera_pose.unsqueeze(0).repeat(len(z), 1) # [batch_size, 3]
 
         if not self.camera_scalar_enc is None:
+            # if not self.mean_camera_pose is None:
+            #     camera_angles = camera_angles - self.mean_camera_pose.unsqueeze(0) # [batch_size, 3]
             # Using only yaw and pitch for conditioning (roll is always zero)
             camera_angles = camera_angles[:, [0, 1]] # [batch_size, 2]
-            if self.training and self.camera_cond_noise_std > 0:
-                camera_angles = camera_angles + self.camera_cond_noise_std * torch.randn_like(camera_angles) * camera_angles.std(dim=0, keepdim=True) # [batch_size, 2]
             camera_angles = camera_angles.sign() * ((camera_angles.abs() % (2.0 * np.pi)) / (2.0 * np.pi)) # [batch_size, 2]
             camera_angles_embs = self.camera_scalar_enc(camera_angles) # [batch_size, fourier_dim]
             camera_angles_embs = F.dropout(camera_angles_embs, p=self.camera_cond_drop_p, training=self.training) # [batch_size, fourier_dim]

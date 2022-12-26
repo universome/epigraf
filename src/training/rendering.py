@@ -54,24 +54,17 @@ def fancy_integration(rgb_sigma, z_vals, noise_std=0.5, last_back=False, white_b
         sigmas = sigmas + noise_std * torch.randn_like(sigmas) # [batch_size, h * w, num_steps, 1]
 
     if clamp_mode == 'softplus':
-        sigmas = F.softplus(sigmas, beta=sp_beta) # [batch_size, h * w, num_steps, 1]
+        alphas = 1.0 - torch.exp(-deltas * F.softplus(sigmas, beta=sp_beta)) # [batch_size, h * w, num_steps, 1]
     elif clamp_mode == 'relu':
-        sigmas = F.relu(sigmas) # [batch_size, h * w, num_steps, 1]
+        alphas = 1.0 - torch.exp(-deltas * F.relu(sigmas)) # [batch_size, h * w, num_steps, 1]
     else:
         raise NotImplementedError(f"Uknown clamp mode: {clamp_mode}")
 
-    # Alpha is in the [0,1] range and represents opacity
-    alphas = 1.0 - torch.exp(-deltas * sigmas) # [batch_size, h * w, num_steps, 1]
+    # if use_inf_depth:
+    #     alphas[:, :, -1, :] = 1.0 # [batch_size, h * w, ., 1]
 
-    # Compute the accumulated transmittance (also in [0, 1]), i.e. how transparent the space is along the ray till the current point
-    transmittance = torch.cumprod(1.0 - alphas + 1e-10, dim=2) # [batch_size, h * w, num_steps, 1]
-
-    # Assume that the first point has nothing in front of it. We also do not need the transmittance
-    # after the last point since we are not going to use any color after the last point
-    transmittance = torch.cat([torch.ones_like(transmittance[:, :, [0], :]), transmittance], dim=2)[:, :, :-1] # [batch_size, h * w, num_steps, 1]
-
-    # Now we are ready to compute the weight for each color, which is equal to the opacity in the current point,
-    # multiplied by the accumulated transmittence of the space in front of it. It is in the [0, 1] range as well
+    alphas_shifted = torch.cat([torch.ones_like(alphas[:, :, [0], :]), 1.0 - alphas + 1e-10], dim=2) # [batch_size, h * w, num_steps, 1]
+    transmittance = torch.cumprod(alphas_shifted, dim=2)[:, :, :-1] # [batch_size, h * w, num_steps, 1]
     weights = alphas * transmittance # [batch_size, h * w, num_steps, 1]
     weights_agg = weights.sum(dim=2) # [batch_size, h * w, 1]
 
@@ -258,10 +251,7 @@ def compute_camera_origins(angles: torch.Tensor, radius: float) -> torch.Tensor:
 #----------------------------------------------------------------------------
 
 def compute_cam2world_matrix(camera_angles: torch.Tensor, radius: float):
-    """
-    Takes in the direction the camera is pointing and the camera origin and returns a cam2world matrix.
-    camera_angles should be provided in the "yaw/pitch/roll" format — [batch_size, 3]
-    """
+    """Takes in the direction the camera is pointing and the camera origin and returns a cam2world matrix."""
     camera_origins = compute_camera_origins(camera_angles, radius) # [batch_size, 3]
     forward_vector = normalize(-camera_origins) # [batch_size, 3]
     batch_size = forward_vector.shape[0]

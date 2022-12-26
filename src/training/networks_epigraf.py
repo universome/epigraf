@@ -11,7 +11,7 @@ from omegaconf import DictConfig
 
 from src.training.networks_stylegan2 import SynthesisBlock
 from src.training.networks_stylegan3 import SynthesisNetwork as SG3SynthesisNetwork
-from src.training.networks_inr_gan import INR, nerf_renderer
+from src.training.networks_inr_gan import SynthesisNetwork as INRSynthesisNetwork
 from src.training.layers import (
     FullyConnectedLayer,
     MappingNetwork,
@@ -35,13 +35,13 @@ def tri_plane_renderer(x: torch.Tensor, coords: torch.Tensor, ray_d_world: torch
     Computes RGB\sigma values from a tri-plane representation + MLP
 
     x: [batch_size, feat_dim * 3, h, w]
-    coords: [batch_size, h * w, num_steps, 3]
+    coords: [batch_size, h * w * num_steps, 3]
     ray_d_world: [batch_size, h * w, 3] --- ray directions in the world coordinate system
     mlp: additional transform to apply on top of features
     scale: additional scaling of the coordinates
     """
+
     assert x.shape[1] % 3 == 0, f"We use 3 planes: {x.shape}"
-    coords = coords.view(coords.shape[0], -1, 3) # [batch_size, h * w * num_points, 3]
     batch_size, raw_feat_dim, h, w = x.shape
     num_points = coords.shape[1]
     feat_dim = raw_feat_dim // 3
@@ -50,15 +50,37 @@ def tri_plane_renderer(x: torch.Tensor, coords: torch.Tensor, ray_d_world: torch
     x = x.view(batch_size * 3, feat_dim, h, w) # [batch_size * 3, feat_dim, h, w]
     coords = coords / scale # [batch_size, num_points, 3]
     coords_2d = torch.stack([
-        coords[..., [0, 1]], # z/y plane
-        coords[..., [0, 2]], # z/x plane
-        coords[..., [1, 2]], # y/x plane
+        coords[..., [0, 1]], # x/y plane
+        coords[..., [0, 2]], # x/z plane
+        coords[..., [1, 2]], # y/z plane
     ], dim=1) # [batch_size, 3, num_points, 2]
     coords_2d = coords_2d.view(batch_size * 3, 1, num_points, 2) # [batch_size * 3, 1, num_points, 2]
     # assert ((coords_2d.min().item() >= -1.0 - 1e-8) and (coords_2d.max().item() <= 1.0 + 1e-8))
     x = F.grid_sample(x, grid=coords_2d, mode='bilinear', align_corners=True).view(batch_size, 3, feat_dim, num_points) # [batch_size, 3, feat_dim, num_points]
     x = x.permute(0, 1, 3, 2) # [batch_size, 3, num_points, feat_dim]
     x = mlp(x, coords, ray_d_world) # [batch_size, num_points, out_dim]
+
+    return x
+
+#----------------------------------------------------------------------------
+
+@misc.profiled_function
+def nerf_renderer(coords: torch.Tensor, ws: torch.Tensor, nerf: INRSynthesisNetwork, ray_d_world: torch.Tensor) -> torch.Tensor:
+    """
+    Computes RGB\sigma values from a NeRF model
+
+    coords: [batch_size, h * w * num_steps, 3]
+    nerf: NeRF model
+    ray_d_world: [batch_size, h * w, 3] --- ray directions in the world coordinate system
+    """
+    batch_size, num_points, _ = coords.shape
+    misc.assert_shape(ws, [batch_size, nerf.num_ws, nerf.w_dim])
+    misc.assert_shape(coords, [batch_size, None, None])
+    misc.assert_shape(ray_d_world, [batch_size, num_points, 3])
+
+    # We do not use ray_d_world for now. TODO: fix this.
+    x = nerf(coords.permute(0, 2, 1), ws, ray_d_world=None) # [batch_size, out_dim, num_points]
+    x = x.permute(0, 2, 1) # [batch_size, num_points, out_dim]
 
     return x
 
@@ -71,6 +93,8 @@ class TriPlaneMLP(nn.Module):
         self.cfg = cfg
         self.out_dim = out_dim
 
+        has_view_cond = self.cfg.tri_plane.view_hid_dim > 0
+
         if self.cfg.tri_plane.mlp.n_layers == 0:
             assert self.cfg.tri_plane.feat_dim == (self.out_dim + 1), f"Wrong dims: {self.cfg.tri_plane.feat_dim}, {self.out_dim}"
             self.model = nn.Identity()
@@ -81,18 +105,18 @@ class TriPlaneMLP(nn.Module):
                 self.pos_enc = None
 
             backbone_input_dim = self.cfg.tri_plane.feat_dim + (0 if self.pos_enc is None else self.pos_enc.get_dim())
-            backbone_out_dim = 1 + (self.cfg.tri_plane.mlp.hid_dim if self.cfg.tri_plane.has_view_cond else self.out_dim)
+            backbone_out_dim = 1 + (self.cfg.tri_plane.mlp.hid_dim if has_view_cond else self.out_dim)
             self.dims = [backbone_input_dim] + [self.cfg.tri_plane.mlp.hid_dim] * (self.cfg.tri_plane.mlp.n_layers - 1) + [backbone_out_dim] # (n_hid_layers + 2)
             activations = ['lrelu'] * (len(self.dims) - 2) + ['linear']
             assert len(self.dims) > 2, f"We cant have just a linear layer here: nothing to modulate. Dims: {self.dims}"
             layers = [FullyConnectedLayer(self.dims[i], self.dims[i+1], activation=a) for i, a in enumerate(activations)]
             self.model = nn.Sequential(*layers)
 
-            if self.cfg.tri_plane.has_view_cond:
-                self.ray_dir_enc = ScalarEncoder1d(coord_dim=3, const_emb_dim=0, x_multiplier=8, use_cos=False, use_raw=True)
+            if self.cfg.tri_plane.view_hid_dim > 0:
+                self.ray_dir_enc = ScalarEncoder1d(coord_dim=3, const_emb_dim=0, x_multiplier=64, use_cos=False)
                 self.color_network = nn.Sequential(
-                    FullyConnectedLayer(backbone_out_dim - 1 + self.ray_dir_enc.get_dim(), 32, activation='lrelu'),
-                    FullyConnectedLayer(32, self.out_dim, activation='linear'),
+                    FullyConnectedLayer(self.cfg.tri_plane.view_hid_dim + self.ray_dir_enc.get_dim(), self.cfg.tri_plane.view_hid_dim, activation='lrelu'),
+                    FullyConnectedLayer(self.cfg.tri_plane.view_hid_dim, self.out_dim, activation='linear'),
                 )
             else:
                 self.ray_dir_enc = None
@@ -111,20 +135,20 @@ class TriPlaneMLP(nn.Module):
             misc.assert_shape(coords, [batch_size, num_points, 3])
             pos_embs = self.pos_enc(coords.reshape(batch_size * num_points, 3)) # [batch_size, num_points, pos_emb_dim]
             x = torch.cat([x, pos_embs], dim=1) # [batch_size, num_points, feat_dim + pos_emb_dim]
-        x = self.model(x) # [batch_size * num_points, backbone_out_dim]
+        x = self.model(x) # [batch_size * num_points, out_dim]
         x = x.view(batch_size, num_points, self.dims[-1]) # [batch_size, num_points, backbone_out_dim]
 
         if not self.color_network is None:
-            num_pixels, view_dir_emb = ray_d_world.shape[1], self.ray_dir_enc.get_dim()
-            num_steps = num_points // num_pixels
+            # Encode only yaw/pitch
+            num_pixels, view_dir_emb = ray_dir_embs.shape[1], self.ray_dir_enc.get_dim()
             ray_dir_embs = self.ray_dir_enc(ray_d_world.reshape(-1, 3)) # [batch_size * h * w, view_dir_emb]
             ray_dir_embs = ray_dir_embs.reshape(batch_size, num_pixels, 1, view_dir_emb) # [batch_size, h * w, 1, view_dir_emb]
-            ray_dir_embs = ray_dir_embs.repeat(1, 1, num_steps, 1) # [batch_size, h * w, num_steps, view_dir_emb]
+            ray_dir_embs = ray_dir_embs.repeat(1, 1, num_points // num_pixels, 1) # [batch_size, h * w, num_steps, view_dir_emb]
             ray_dir_embs = ray_dir_embs.reshape(batch_size, num_points, view_dir_emb) # [batch_size, h * w * num_steps, view_dir_emb]
-            density = x[:, :, [-1]] # [batch_size, num_points, 1]
-            color_feats = F.leaky_relu(x[:, :, :-1], negative_slope=0.1) # [batch_size, num_points, backbone_out_dim - 1]
-            color_feats = torch.cat([color_feats, ray_dir_embs], dim=2) # [batch_size, num_points, backbone_out_dim - 1 + view_dir_emb]
-            color_feats = color_feats.view(batch_size * num_points, self.dims[-1] - 1 + view_dir_emb) # [batch_size * num_points, backbone_out_dim - 1 + view_dir_emb]
+            density = x[:, :, [self.cfg.tri_plane.view_hid_dim]] # [batch_size, num_points, 1]
+            color_feats = F.lrelu(x[:, :, :-1], beta=0.1) # [batch_size, num_points, out_dim]
+            color_feats = torch.cat([color_feats, ray_dir_embs], dim=2) # [batch_size, num_points, out_dim + view_dir_emb]
+            color_feats = color_feats.view(batch_size * num_points, self.cfg.tri_plane.view_hid_dim + view_dir_emb) # [batch_size * num_points, out_dim + view_dir_emb]
             colors = self.color_network(color_feats) # [batch_size * num_points, out_dim]
             colors = colors.view(batch_size, num_points, self.out_dim) # [batch_size * num_points, out_dim]
             y = torch.cat([colors, density], dim=2) # [batch_size, num_points, out_dim + 1]
@@ -148,6 +172,7 @@ class SynthesisBlocksSequence(torch.nn.Module):
         channel_base    = 32768,    # Overall multiplier for the number of channels.
         channel_max     = 512,      # Maximum number of channels in any layer.
         num_fp16_res    = 4,        # Use FP16 for the N highest resolutions.
+        last_block_fp32 = False,    # Force FP32 for the highest block
         **block_kwargs,             # Arguments for SynthesisBlock.
     ):
         assert in_resolution == 0 or (in_resolution >= 4 and math.log2(in_resolution).is_integer())
@@ -172,7 +197,7 @@ class SynthesisBlocksSequence(torch.nn.Module):
         for block_idx, res in enumerate(self.block_resolutions):
             cur_in_channels = out_channels_dict[res // 2] if block_idx > 0 else in_channels
             cur_out_channels = out_channels_dict[res]
-            use_fp16 = (res >= fp16_resolution)
+            use_fp16 = (res >= fp16_resolution) and not (last_block_fp32 and res == self.out_resolution)
             is_last = (res == self.out_resolution)
             block = SynthesisBlock(cur_in_channels, cur_out_channels, w_dim=w_dim, resolution=res,
                 img_channels=self.out_channels, is_last=is_last, use_fp16=use_fp16, **block_kwargs)
@@ -226,6 +251,7 @@ class SynthesisNetwork(torch.nn.Module):
                 out_channels=decoder_out_channels,
                 architecture='skip',
                 num_fp16_res=(0 if self.cfg.tri_plane.fp32 else num_fp16_res),
+                last_block_fp32=self.cfg.tri_plane.last_block_fp32,
                 use_noise=self.cfg.use_noise,
                 **synthesis_seq_kwargs,
             )
@@ -246,19 +272,21 @@ class SynthesisNetwork(torch.nn.Module):
         self.tri_plane_mlp = TriPlaneMLP(self.cfg, out_dim=self.img_channels)
         self.num_ws = self.tri_plane_decoder.num_ws
         self.nerf_noise_std = 0.0
+        self.nerf_sp_beta = 1.0
         self.train_resolution = self.cfg.patch.resolution if self.cfg.patch.enabled else self.img_resolution
         self.test_resolution = self.img_resolution
 
         if self.cfg.bg_model.type in (None, "plane"):
             self.bg_model = None
         elif self.cfg.bg_model.type == "sphere":
-            self.bg_model = INR(self.cfg.bg_model, w_dim)
+            self.bg_model = INRSynthesisNetwork(self.cfg.bg_model, w_dim)
             self.num_ws += self.bg_model.num_ws
         else:
             raise NotImplementedError(f"Uknown BG model type: {self.bg_model}")
 
     def progressive_update(self, cur_kimg: float):
         self.nerf_noise_std = linear_schedule(cur_kimg, self.cfg.nerf_noise_std_init, 0.0, self.cfg.nerf_noise_kimg_growth)
+        self.nerf_sp_beta = linear_schedule(cur_kimg, self.cfg.nerf_sp_beta_init, self.cfg.nerf_sp_beta_target, self.cfg.nerf_sp_beta_kimg_growth)
 
     @torch.no_grad()
     def compute_densities(self, ws: torch.Tensor, coords: torch.Tensor, max_batch_res: int=32, use_bg: bool=False, **block_kwargs) -> torch.Tensor:
@@ -312,7 +340,7 @@ class SynthesisNetwork(torch.nn.Module):
             batch_size=max_batch_res ** 2,
             dim=1,
             white_back_end_idx=white_back_end_idx, last_back=False, use_inf_depth=True,
-            clamp_mode=self.cfg.clamp_mode, noise_std=0.0)
+            clamp_mode=self.cfg.clamp_mode, noise_std=0.0, sp_beta=self.nerf_sp_beta)
 
         return bg_int_out['rendered_feats'] # [batch_size, h * w, mlp_out_dim]
 
@@ -333,7 +361,7 @@ class SynthesisNetwork(torch.nn.Module):
         batch_size = ws.shape[0]
         h = w = (self.train_resolution if self.training else self.test_resolution)
         should_render_bg = (not self.cfg.bg_model.type is None) and (not ignore_bg)
-        fov = self.cfg.dataset.camera.fov if fov is None else fov # [1] or [batch_size]
+        fov = self.cfg.dataset.sampling.fov if fov is None else fov # [1] or [batch_size]
 
         if self.cfg.bg_model.type == "plane":
             bg = plane_feats[:, -self.img_channels:, :, :] # [batch_size, h, w]
@@ -350,15 +378,16 @@ class SynthesisNetwork(torch.nn.Module):
         nerf_noise_std = self.nerf_noise_std if self.training else 0.0
 
         z_vals, rays_d_cam = get_initial_rays_trig(
-            batch_size, num_steps, resolution=(h, w), device=ws.device, ray_start=self.cfg.dataset.camera.ray_start,
-            ray_end=self.cfg.dataset.camera.ray_end, fov=fov, patch_params=patch_params)
-        c2w = compute_cam2world_matrix(camera_angles, self.cfg.dataset.camera.radius) # [batch_size, 4, 4]
-        points_world, z_vals, ray_d_world, ray_o_world = transform_points(z_vals=z_vals, ray_directions=rays_d_cam, c2w=c2w) # [batch_size, h * w, num_steps, 1], [?], [?], [batch_size, h * w, 3]
+            batch_size, num_steps, resolution=(h, w), device=ws.device, ray_start=self.cfg.dataset.sampling.ray_start,
+            ray_end=self.cfg.dataset.sampling.ray_end, fov=fov, patch_params=patch_params)
+        c2w = compute_cam2world_matrix(camera_angles, self.cfg.dataset.sampling.radius) # [batch_size, 4, 4]
+        points_world, z_vals, ray_d_world, ray_o_world = transform_points(z_vals=z_vals, ray_directions=rays_d_cam, c2w=c2w) # [batch_size, h * w, num_steps, 1], [?]
+        points_world = points_world.reshape(batch_size, h * w * num_steps, 3) # [batch_size, h * w * num_steps, 3]
 
         coarse_output = run_batchwise(
-            fn=tri_plane_renderer, data=dict(coords=points_world, ray_d_world=ray_d_world),
-            batch_size=max_batch_res ** 2,
-            dim=1, mlp=self.tri_plane_mlp, x=plane_feats, scale=self.cfg.dataset.cube_scale,
+            fn=tri_plane_renderer, data=dict(coords=points_world),
+            batch_size=max_batch_res ** 2 * num_steps,
+            dim=1, mlp=self.tri_plane_mlp, x=plane_feats, scale=self.cfg.dataset.cube_scale, ray_d_world=ray_d_world,
         ) # [batch_size, h * w * num_steps, num_feats]
         coarse_output = coarse_output.view(batch_size, h * w, num_steps, tri_plane_out_dim) # [batch_size, h * w, num_steps, num_feats]
 
@@ -370,7 +399,7 @@ class SynthesisNetwork(torch.nn.Module):
             data=dict(rgb_sigma=coarse_output, z_vals=z_vals),
             batch_size=max_batch_res ** 2,
             dim=1,
-            clamp_mode=self.cfg.clamp_mode, noise_std=nerf_noise_std, use_inf_depth=self.cfg.bg_model.type is None,
+            clamp_mode=self.cfg.clamp_mode, noise_std=nerf_noise_std, sp_beta=self.nerf_sp_beta, use_inf_depth=self.cfg.bg_model.type is None,
         )['weights'] # [batch_size, h * w, num_steps, 1]
         weights = weights.reshape(batch_size * h * w, num_steps) + 1e-5 # [batch_size * h * w, num_steps]
 
@@ -380,14 +409,16 @@ class SynthesisNetwork(torch.nn.Module):
         z_vals = z_vals.reshape(batch_size, h * w, num_steps, 1) # [batch_size, h * w, num_steps, 1]
         fine_z_vals = sample_pdf(z_vals_mid, weights[:, 1:-1], num_steps, det=False).detach()
         fine_z_vals = fine_z_vals.reshape(batch_size, h * w, num_steps, 1)
-        fine_points = ray_o_world.unsqueeze(2).contiguous() + ray_d_world.unsqueeze(2).contiguous() * fine_z_vals.expand(-1, -1, -1, 3).contiguous() # [batch_size, h * w, num_steps, 1]
+
+        fine_points = ray_o_world.unsqueeze(2).contiguous() + ray_d_world.unsqueeze(2).contiguous() * fine_z_vals.expand(-1, -1, -1, 3).contiguous()
+        fine_points = fine_points.reshape(batch_size, h * w * num_steps, 3)
         # <= Importance sampling END =>
 
         # Model prediction on re-sampled find points
         fine_output = run_batchwise(
-            fn=tri_plane_renderer, data=dict(coords=fine_points, ray_d_world=ray_d_world),
-            batch_size=max_batch_res ** 2,
-            dim=1, mlp=self.tri_plane_mlp, x=plane_feats, scale=self.cfg.dataset.cube_scale,
+            fn=tri_plane_renderer, data=dict(coords=fine_points),
+            batch_size=max_batch_res ** 2 * num_steps,
+            dim=1, mlp=self.tri_plane_mlp, x=plane_feats, scale=self.cfg.dataset.cube_scale, ray_d_world=ray_d_world,
         ) # [batch_size, h * w * num_steps, num_feats]
         fine_output = fine_output.view(batch_size, h * w, num_steps, tri_plane_out_dim) # [batch_size, h * w, num_steps, tri_plane_out_dim]
 
@@ -406,7 +437,7 @@ class SynthesisNetwork(torch.nn.Module):
             batch_size=max_batch_res ** 2,
             dim=1,
             white_back_end_idx=white_back_end_idx, last_back=self.cfg.dataset.last_back, clamp_mode=self.cfg.clamp_mode,
-            noise_std=nerf_noise_std, use_inf_depth=self.cfg.bg_model.type is None)
+            noise_std=nerf_noise_std, sp_beta=self.nerf_sp_beta, use_inf_depth=self.cfg.bg_model.type is None)
         misc.assert_shape(int_out['final_transmittance'], [batch_size, h * w])
 
         if should_render_bg:
@@ -457,7 +488,7 @@ class Generator(torch.nn.Module):
         self.img_channels = img_channels
         self.synthesis = SynthesisNetwork(cfg=cfg, w_dim=w_dim, img_resolution=img_resolution, img_channels=img_channels, **synthesis_kwargs)
         self.num_ws = self.synthesis.num_ws
-        self.mapping = MappingNetwork(z_dim=z_dim, c_dim=c_dim, w_dim=w_dim, num_ws=self.num_ws, camera_raw_scalars=True, **mapping_kwargs)
+        self.mapping = MappingNetwork(z_dim=z_dim, c_dim=c_dim, w_dim=w_dim, num_ws=self.num_ws, **mapping_kwargs)
 
     def progressive_update(self, cur_kimg: float):
         self.synthesis.progressive_update(cur_kimg)
