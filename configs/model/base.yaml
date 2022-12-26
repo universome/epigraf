@@ -5,6 +5,7 @@ generator:
   cmax: 512
   cbase: 32768
   optim:
+    lr: 0.0025
     betas: [0.0, 0.99]
   patch: ${training.patch}
   dataset: ${dataset}

@@ -187,7 +187,7 @@ def main(cfg: DictConfig):
     c.D_kwargs.block_kwargs.freeze_layers = opts.freezed
     c.D_kwargs.epilogue_kwargs.mbstd_group_size = cfg.model.discriminator.mbstd_group_size
     c.loss_kwargs.r1_gamma = (0.0002 * (cfg.dataset.resolution ** 2) / opts.batch_size) if opts.gamma == 'auto' else opts.gamma
-    c.G_opt_kwargs.lr = cfg.model.generator.optim.get('lr', 0.002 if cfg.model.name == 'stylegan2' else 0.0025)
+    c.G_opt_kwargs.lr = cfg.model.generator.optim.lr
     c.D_opt_kwargs.lr = cfg.model.discriminator.optim.lr
     c.metrics = [] if opts.metrics is None else opts.metrics.split(',')
     c.total_kimg = opts.kimg
