@@ -34,6 +34,7 @@ discriminator:
   camera_cond: false
   camera_cond_drop_p: 0.0
   camera_cond_noise_std: 0.0
+  camera_cond_raw: false
   hyper_mod: false
 
   optim:
