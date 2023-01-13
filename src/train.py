@@ -226,6 +226,9 @@ def main(cfg: DictConfig):
             c.G_kwargs.channel_max *= 2
             c.G_kwargs.use_radial_filters = True # Use radially symmetric downsampling filters.
 
+        # In case of cfg.dataset.camera.dist_type='cylindrical', this would not work as intended
+        # So comment this out in case it's bothering you
+        # And you are sure all camera parameters are correctly tweaked
         print('Validating that the vieweing frustum is inside the cube...', end='')
         assert validate_frustum(
             fov=cfg.dataset.camera.fov,
