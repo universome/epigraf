@@ -2,7 +2,8 @@
 
 path: data/${dataset.name}.zip
 c_dim: 0
-camera: ~ # You must define it explicitly
+camera:
+  dist_type: spherical
 
 # Default parameters
 resolution: 256

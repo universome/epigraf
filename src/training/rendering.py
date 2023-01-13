@@ -281,6 +281,36 @@ def compute_cam2world_matrix(camera_angles: torch.Tensor, radius: float):
     return cam2world
 
 #----------------------------------------------------------------------------
+def compute_camera_origins_cylindrical(camera_angles, radius):
+    y = camera_angles[:, 0]
+    theta = camera_angles[:, 1]
+    # Depending on the order and +- here, theta=0 can be different
+    # In this case, theta=0 would make x=0, z=radius
+    x, z = torch.sin(theta) * radius, torch.cos(theta) * radius
+    return torch.stack((x, y, z), dim=-1)
+
+def compute_cam2world_matrix_cylindrical(camera_angles: torch.Tensor, radius: float):
+    """
+    Takes in the direction the camera is pointing and the camera origin and returns a cam2world matrix.
+    camera_angles should be provided in the "yaw/pitch/roll" format — [batch_size, 3]
+    """
+    camera_origins = compute_camera_origins_cylindrical(camera_angles, radius) # [batch_size, 3]
+    forward_vector = normalize(-camera_origins * torch.tensor([1, 0, 1]).to(camera_origins)) # [batch_size, 3]
+    batch_size = forward_vector.shape[0]
+    up_vector = torch.tensor([0, 1, 0], dtype=torch.float, device=forward_vector.device).expand_as(forward_vector)
+    left_vector = normalize(torch.cross(up_vector, forward_vector, dim=-1))
+    up_vector = normalize(torch.cross(forward_vector, left_vector, dim=-1))
+
+    rotation_matrix = torch.eye(4, device=forward_vector.device).unsqueeze(0).repeat(batch_size, 1, 1)
+    rotation_matrix[:, :3, :3] = torch.stack((-left_vector, up_vector, -forward_vector), axis=-1)
+
+    translation_matrix = torch.eye(4, device=forward_vector.device).unsqueeze(0).repeat(batch_size, 1, 1)
+    translation_matrix[:, :3, 3] = camera_origins
+
+    cam2world = translation_matrix @ rotation_matrix
+
+    return cam2world
+#----------------------------------------------------------------------------
 
 @misc.profiled_function
 def sample_pdf(bins, weights, N_importance, det=False, eps=1e-5):

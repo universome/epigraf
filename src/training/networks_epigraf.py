@@ -23,6 +23,7 @@ from src.training.rendering import (
     transform_points,
     sample_pdf,
     compute_cam2world_matrix,
+    compute_cam2world_matrix_cylindrical,
     compute_bg_points,
 )
 from src.training.training_utils import linear_schedule, run_batchwise, extract_patches
@@ -354,7 +355,12 @@ class SynthesisNetwork(torch.nn.Module):
         z_vals, rays_d_cam = get_initial_rays_trig(
             batch_size, num_steps, resolution=(h, w), device=ws.device, ray_start=self.cfg.dataset.camera.ray_start,
             ray_end=self.cfg.dataset.camera.ray_end, fov=fov, patch_params=patch_params)
-        c2w = compute_cam2world_matrix(camera_angles, self.cfg.dataset.camera.radius) # [batch_size, 4, 4]
+        if self.cfg.dataset.camera.dist_type == 'spherical':
+            c2w = compute_cam2world_matrix(camera_angles, self.cfg.dataset.camera.radius) # [batch_size, 4, 4]
+        elif self.cfg.dataset.camera.dist_type == 'cylindrical':
+            c2w = compute_cam2world_matrix_cylindrical(camera_angles, self.cfg.dataset.camera.radius) # [batch_size, 4, 4]
+        else:
+            raise ValueError(f"Camera distribution type {self.cfg.dataset.camera.dist_type} not recognized")
         points_world, z_vals, ray_d_world, ray_o_world = transform_points(z_vals=z_vals, ray_directions=rays_d_cam, c2w=c2w) # [batch_size, h * w, num_steps, 1], [?]
         points_world = points_world.reshape(batch_size, h * w * num_steps, 3) # [batch_size, h * w * num_steps, 3]
 
