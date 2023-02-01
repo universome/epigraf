@@ -286,7 +286,7 @@ def training_loop(
                 all_gen_camera_angles = [training_set.get_camera_angles(i) for i in gen_cond_sample_idx] # [N, 3]
                 all_gen_camera_angles = torch.from_numpy(np.stack(all_gen_camera_angles)).pin_memory().to(device) # [N, 3]
             else:
-                all_gen_camera_angles = sample_camera_angles(cfg=cfg.dataset.sampling, batch_size=len(gen_cond_sample_idx), device=device) # [N, 3]
+                all_gen_camera_angles = sample_camera_angles(cfg=cfg.dataset.camera, batch_size=len(gen_cond_sample_idx), device=device) # [N, 3]
 
             # Preparing GPC data (camera conditioning for G)
             # Shift the values in X% of random places by 1 to spoof the generator

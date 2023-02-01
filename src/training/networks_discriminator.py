@@ -263,10 +263,10 @@ class Discriminator(torch.nn.Module):
             patch_scale_embs = self.scalar_enc(patch_params_cond) # [batch_size, fourier_dim]
             c = c if not self.cfg.hyper_mod else torch.cat([c, patch_scale_embs], dim=1) # [batch_size, c_dim + fourier_dim]
 
-            if self.cfg.hyper_mod:
-                hyper_mod_c = self.hyper_mod_mapping(z=None, c=patch_scale_embs) # [batch_size, 512]
-            else:
-                hyper_mod_c = None
+        if not self.scalar_enc is None and self.cfg.hyper_mod:
+            hyper_mod_c = self.hyper_mod_mapping(z=None, c=patch_scale_embs) # [batch_size, 512]
+        else:
+            hyper_mod_c = None
 
         x = None
         for res in self.block_resolutions:

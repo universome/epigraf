@@ -66,7 +66,7 @@ def iterate_random_conditioning(opts, batch_size):
 
     if opts.G.c_dim == 0 and opts.G.cfg.dataset.camera.dist != 'custom':
         while True:
-            yield c, sample_camera_angles(cfg=opts.G.cfg.dataset.sampling, batch_size=batch_size, device=opts.device)
+            yield c, sample_camera_angles(cfg=opts.G.cfg.dataset.camera, batch_size=batch_size, device=opts.device)
     else:
         while True:
             sample_idx = [np.random.randint(len(dataset)) for _ in range(batch_size)]
@@ -81,7 +81,7 @@ def iterate_random_conditioning(opts, batch_size):
                 camera_angles = [dataset.get_camera_angles(i) for i in sample_idx]
                 camera_angles = torch.from_numpy(np.stack(camera_angles)).pin_memory().to(opts.device)
             else:
-                camera_angles = sample_camera_angles(cfg=opts.G.cfg.dataset.sampling, batch_size=batch_size, device=opts.device)
+                camera_angles = sample_camera_angles(cfg=opts.G.cfg.dataset.camera, batch_size=batch_size, device=opts.device)
 
             yield curr_c, camera_angles
 

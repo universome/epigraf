@@ -319,8 +319,8 @@ class SynthesisNetwork(torch.nn.Module):
                 self.num_ws += block.num_torgb
             setattr(self, f'b{res}', block)
 
-    def forward(self, ws, camera_angles=None, patch_params=None, **block_kwargs):
-        _ = camera_angles # For compatibility
+    def forward(self, ws, camera_angles=None, fov=None, max_batch_res=None, patch_params=None, **block_kwargs):
+        del camera_angles, fov, max_batch_res # Passing them into the forward pass for compatibility
         block_ws = []
         with torch.autograd.profiler.record_function('split_ws'):
             misc.assert_shape(ws, [None, self.num_ws, self.w_dim])
@@ -372,7 +372,8 @@ class Generator(torch.nn.Module):
         self.num_ws = self.synthesis.num_ws
         self.mapping = MappingNetwork(z_dim=z_dim, c_dim=c_dim, w_dim=w_dim, num_ws=self.num_ws, **mapping_kwargs)
 
-    def forward(self, z, c, truncation_psi=1, truncation_cutoff=None, update_emas=False, **synthesis_kwargs):
+    def forward(self, z, c, truncation_psi=1, truncation_cutoff=None, update_emas=False, camera_angles_cond=False, **synthesis_kwargs):
+        del camera_angles_cond # Passing it into the forward pass for compatibility.
         ws = self.mapping(z, c, truncation_psi=truncation_psi, truncation_cutoff=truncation_cutoff, update_emas=update_emas)
         out = self.synthesis(ws, update_emas=update_emas, **synthesis_kwargs)
         return out

@@ -67,7 +67,7 @@ class StyleGAN2Loss(Loss):
                 cutoff = torch.where(torch.rand([], device=ws.device) < self.style_mixing_prob, cutoff, torch.full_like(cutoff, ws.shape[1]))
                 ws[:, cutoff:] = self.G.mapping(z=torch.randn_like(z), c=c, camera_angles=camera_angles_cond, update_emas=False)[:, cutoff:]
         patch_params = sample_patch_params(len(z), self.patch_cfg, device=z.device) if self.patch_cfg['enabled'] else {}
-        patch_kwargs = dict(patch_params=patch_params) if self.patch_cfg['enabled'] else None
+        patch_kwargs = dict(patch_params=patch_params) if self.patch_cfg['enabled'] else {}
         img = self.G.synthesis(ws, camera_angles, update_emas=update_emas, **patch_kwargs)
         return img, ws, patch_params
 
