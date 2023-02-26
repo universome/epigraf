@@ -15,4 +15,4 @@ camera:
 white_back: true
 last_back: false
 cube_scale: 0.475
-c_dim: 6
+c_dim: 10

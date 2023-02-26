@@ -75,17 +75,35 @@ def display_imgs(img_paths: List[os.PathLike], nrow: bool=None, resize: int=None
 
 #----------------------------------------------------------------------------
 
-def resize_and_save_image(src_path: str, trg_path: str, size: int):
-    img = Image.open(src_path)
-    img.load() # required for png.split()
+def resize_and_save_image(src_path: str, trg_path: str, size: int, ignore_grayscale: bool=False, ignore_broken: bool=False, ignore_existing: bool=False):
+    Image.init()
+    assert file_ext(src_path) in Image.EXTENSION, f"Unknown image extension: {src_path}"
+    assert file_ext(trg_path) in Image.EXTENSION, f"Unknown image extension: {trg_path}"
+
+    if ignore_existing and os.path.isfile(trg_path):
+        return
+
+    try:
+        img = Image.open(src_path)
+        if img.mode == 'L' and ignore_grayscale:
+            return
+        img.load() # required for png.split()
+    except:
+        if ignore_broken:
+            return
+        else:
+            raise
+
     img = center_resize_crop(img, size)
     jpg_kwargs = {'quality': 95} if file_ext(trg_path) == '.jpg' else {}
 
-    if file_ext(src_path) == '.png' and file_ext(trg_path) == '.jpg' and len(img.split()) == 4:
+    if file_ext(trg_path) in ('.jpg', '.jpeg') and len(img.split()) == 4:
         jpg = Image.new("RGB", img.size, (255, 255, 255))
         jpg.paste(img, mask=img.split()[3]) # 3 is the alpha channel
         jpg.save(trg_path, **jpg_kwargs)
     else:
+        if img.mode == "CMYK":
+            img = img.convert("RGB")
         img.save(trg_path, **jpg_kwargs)
 
 #----------------------------------------------------------------------------

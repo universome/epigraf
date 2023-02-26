@@ -261,7 +261,10 @@ class ImageFolderDataset(Dataset):
         if values is None:
             return None
         values = dict(values)
-        values = [values[remove_root(fname, self._name).replace('\\', '/')] for fname in self._image_fnames]
+        len_before = len(values)
+        values = {remove_ext(p): values[p] for p in values}
+        assert len(values) == len_before, f"Duplicate file names in {dataset_desc_fname}"
+        values = [values[remove_ext(remove_root(fname, self._name).replace('\\', '/'))] for fname in self._image_fnames]
         values = np.array(values)
         return values
 
@@ -274,6 +277,12 @@ class ImageFolderDataset(Dataset):
 
     def _load_raw_camera_angles(self):
         return self._load_field('camera_angles')
+
+#----------------------------------------------------------------------------
+
+def remove_ext(fname: os.PathLike):
+    """Remove file extension from `fname`"""
+    return os.path.splitext(fname)[0]
 
 #----------------------------------------------------------------------------
 

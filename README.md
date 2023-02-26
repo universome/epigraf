@@ -73,6 +73,11 @@ For FFHQ, in contrast to some previous works (e.g., EG3D or GRAM), we do not re-
 ### Megascans
 
 We give the links to the Megascans datasets, as well as the rendering code and documentation on how to use it in a [separate repo](https://github.com/universome/megascans-rendering).
+We also prepared a script for simpler downloading of the Megascans datasets: you can download it via:
+```
+python scripts/data_scripts/download_megascans.py food /my/output/dir/
+python scripts/data_scripts/download_megascans.py plants /my/output/dir/
+```
 
 ### How to pre-process the datasets
 
@@ -88,12 +93,17 @@ If you want to train on a custom dataset, then create the config for it like `co
 
 To launch training, run:
 ```
-python src/infra/launch.py hydra.run.dir=. exp_suffix=<EXPERIMENT_NAME> dataset=<DATASET_NAME> dataset.resolution=<DATASET_RESOLUTION>  model.training.gamma=0.1
+python src/infra/launch.py hydra.run.dir=. desc=<EXPERIMENT_NAME> dataset=<DATASET_NAME> dataset.resolution=<DATASET_RESOLUTION>  model.training.gamma=0.1 training.resume=null
 ```
 
 To continue training, launch:
 ```
 python src/infra/launch.py hydra.run.dir=. experiment_dir=<PATH_TO_EXPERIMENT> training.resume=latest
+```
+
+For Megascans Plants, we used class labels (for all the models). To enable class-conditional training, use `training.use_labels=true` command line argument (class annotations are located in `dataset.json`):
+```
+python src/infra/launch.py hydra.run.dir=. desc=default dataset=megascans_plants dataset.resolution=256  training.gamma=0.05 training.resume=null training.use_labels=true
 ```
 
 ### Tips and tricks
