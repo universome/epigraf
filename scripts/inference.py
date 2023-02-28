@@ -3,8 +3,10 @@ Generates a multi-view video of a sample from pi-GAN
 Adapted from Adapted from https://github.com/marcoamonteiro/pi-GAN
 """
 
+import sys; sys.path.extend(['.'])
 import os
-from typing import List
+import re
+from typing import List, Union, Optional
 
 import hydra
 import torch
@@ -13,7 +15,6 @@ from omegaconf import DictConfig
 import torchvision as tv
 from torchvision.utils import make_grid
 import torchvision.transforms.functional as TVF
-from PIL import Image
 from tqdm import tqdm
 
 from src.training.inference_utils import generate_trajectory, generate, generate_camera_angles
@@ -35,6 +36,9 @@ def generate_vis(cfg: DictConfig):
     G.cfg.bg_model.num_steps = G.cfg.bg_model.num_steps * cfg.ray_step_multiplier
     G.cfg.dataset.white_back = True if cfg.force_whiteback else G.cfg.dataset.white_back
     G.nerf_noise_std = 0
+    G.synthesis.cfg.dataset.camera.ray_end = G.synthesis.cfg.dataset.camera.ray_end + cfg.get('far_plane_offset', 0)
+    G.synthesis.cfg.dataset.camera.fov = G.synthesis.cfg.dataset.camera.fov + cfg.get('fov_offset', 0)
+    G.cfg.dataset.camera.fov = G.cfg.dataset.camera.fov + cfg.get('fov_offset', 0)
     maybe_makedirs(save_dir)
     assert (not cfg.seeds is None) or (not cfg.num_seeds is None), "You must specify either `num_seeds` or `seeds`"
     seeds = cfg.seeds if cfg.num_seeds is None else np.arange(cfg.num_seeds)
@@ -125,12 +129,7 @@ def generate_vis(cfg: DictConfig):
             save_path = os.path.join(save_dir, f'seeds-{grid_seeds[0]:04d}-to-{grid_seeds[-1]:04d}.mp4')
             video_frames = torch.stack([make_grid(g, nrow=cfg.vis.nrow) for g in grid_videos]) # [t, c, gh, gw]
             video = (video_frames * 255).to(torch.uint8).permute(0, 2, 3, 1) # [T, H, W, C]
-            save_path = os.path.join(save_dir, f'seeds-{grid_seeds[0]:04d}-to-{grid_seeds[-1]:04d}.{"gif" if cfg.vis.as_gif else "mp4"}')
-            if cfg.vis.as_gif:
-                frames = [Image.fromarray(x, 'RGB') for x in video.numpy()]
-                frames[0].save(save_path, quality=75, save_all=True, append_images=frames[1:], duration=1000/cfg.vis.fps, loop=0)
-            else:
-                tv.io.write_video(save_path, video, fps=cfg.vis.fps, video_codec='h264', options={'crf': '10'})
+            tv.io.write_video(save_path, video, fps=cfg.vis.fps, video_codec='h264', options={'crf': '10'})
     elif cfg.vis.name == 'interp_density':
         ws = sample_ws_from_seeds(G, seeds, cfg, device, cfg.num_interp_steps) # [num_interp_steps, num_videos, num_ws, w_dim]
         ws = ws.reshape(cfg.num_interp_steps * ws.shape[1], *ws.shape[2:]) # [num_interp_steps * num_videos, num_ws, w_dim]
@@ -156,7 +155,7 @@ def generate_vis(cfg: DictConfig):
         images = images.permute(1, 0, 2, 3, 4) # [num_samples, num_traj_steps, c, h, w]
 
         for seed, grid in tqdm(list(zip(seeds, images)), desc='Saving'):
-            # grid = TVF.resize(grid, size=(256, 256))
+            grid = TVF.resize(grid, size=(256, 256))
             grid = make_grid(grid, nrow=len(trajectory))
             TVF.to_pil_image(grid).save(os.path.join(save_dir, f'seed-{seed:04d}.jpg'), q=95)
     else:
@@ -170,47 +169,76 @@ def sample_z_from_seeds(seeds: List[int], z_dim: int) -> torch.Tensor:
 
 #----------------------------------------------------------------------------
 
-def sample_c_from_seeds(seeds: List[int], c_dim: int) -> torch.Tensor:
+def sample_c_from_seeds(seeds: List[int], c_dim: int, device: str='cpu') -> torch.Tensor:
     if c_dim == 0:
         return torch.empty(len(seeds), 0)
-
-    c_idx = [np.random.RandomState(s).choice(np.arange(c_dim), size=1) for s in seeds] # [num_samples, 1]
-    c_idx = np.concatenate(c_idx, axis=0) # [num_samples, 1]
-    cs = np.zeros((len(seeds), c_dim)) # [num_samples, c_dim]
-    cs[np.arange(len(seeds)), c_idx] = 1.0
-
-    return torch.from_numpy(cs).float() # [num_samples, c_dim]
+    c_idx = [np.random.RandomState(s).choice(np.arange(c_dim), size=1).item() for s in seeds] # [num_samples]
+    return c_idx_to_c(c_idx, c_dim, device)
 
 #----------------------------------------------------------------------------
 
-def sample_ws_from_seeds(G, seeds: List[int], cfg: DictConfig, device: str, num_interp_steps: int=0):
+def c_idx_to_c(c_idx: List[int], c_dim: int, device: str) -> torch.Tensor:
+    c_idx = np.array(c_idx) # [num_samples, 1]
+    c = np.zeros((len(c_idx), c_dim)) # [num_samples, c_dim]
+    c[np.arange(len(c_idx)), c_idx] = 1.0
+
+    return torch.from_numpy(c).float().to(device) # [num_samples, c_dim]
+
+#----------------------------------------------------------------------------
+
+def sample_ws_from_seeds(G, seeds: List[int], cfg: DictConfig, device: str, num_interp_steps: int=0,  classes: Optional[List[int]]=None):
     if num_interp_steps == 0:
         z = sample_z_from_seeds(seeds, G.z_dim).to(device) # [num_samples, z_dim]
-        c = sample_c_from_seeds(seeds, G.c_dim).to(device) # [num_samples, c_dim]
-        ws = G.mapping(z, c=c, truncation_psi=cfg.truncation_psi) # [num_samples, num_ws, w_dim]
+        if classes is None:
+            c = sample_c_from_seeds(seeds, G.c_dim, device=device) # [num_samples, c_dim]
+        else:
+            c = c_idx_to_c(classes, G.c_dim, device) # [num_samples, c_dim]
+
+        if cfg.truncation_psi < 1.0 and G.c_dim > 0:
+            num_samples_to_avg = 256
+            z_for_avg = torch.randn(len(c) * num_samples_to_avg, G.z_dim, device=z.device) # [num_c * num_samples_to_avg, z_dim]
+            c_for_avg = c.repeat_interleave(num_samples_to_avg, dim=0) # [num_c * num_samples_to_avg, c_dim]
+            ws_for_avg = G.mapping(z_for_avg, c_for_avg) # [num_c * num_samples_to_avg, num_ws, w_dim]
+            ws_for_avg = ws_for_avg.view(len(c), num_samples_to_avg, G.num_ws, G.cfg.w_dim) # [num_c, num_samples_to_avg, w_dim]
+            ws_avg = ws_for_avg.mean(dim=1) # [num_c, num_ws, w_dim]
+            if not classes is None:
+                ws_avg = ws_avg.repeat_interleave(len(seeds), dim=0) # [num_classes * num_seeds, num_ws, w_dim]
+
+        if not classes is None:
+            z = z.repeat(len(c), 1) # [num_classes * num_seeds, z_dim]
+            c = c.repeat_interleave(len(seeds), dim=0) # [num_classes * num_seeds, c_dim]
+
+        if cfg.truncation_psi < 1.0 and G.c_dim > 0:
+            ws = G.mapping(z, c=c) # [num_samples, num_ws, w_dim]
+            ws = ws * cfg.truncation_psi + ws_avg * (1 - cfg.truncation_psi) # [num_samples, num_ws, w_dim]
+        else:
+            ws = G.mapping(z, c=c, truncation_psi=cfg.truncation_psi) # [num_samples, num_ws, w_dim]
+
+        return ws, z, c
     else:
+        assert classes is None
         z_from = sample_z_from_seeds(seeds[0::2], G.z_dim).to(device) # [num_samples, z_dim]
         z_to = sample_z_from_seeds(seeds[1::2], G.z_dim).to(device) # [num_samples, z_dim]
-        c_from = sample_c_from_seeds(seeds[0::2], G.c_dim).to(device) # [num_samples, c_dim]
-        c_to = sample_c_from_seeds(seeds[1::2], G.c_dim).to(device) # [num_samples, c_dim]
+        c_from = sample_c_from_seeds(seeds[0::2], G.c_dim, device=device) # [num_samples, c_dim]
+        c_to = sample_c_from_seeds(seeds[1::2], G.c_dim, device=device) # [num_samples, c_dim]
         ws_from = G.mapping(z_from, c=c_from, truncation_psi=cfg.truncation_psi) # [num_samples, num_ws, w_dim]
         ws_to = G.mapping(z_to, c=c_to, truncation_psi=cfg.truncation_psi) # [num_samples, num_ws, w_dim]
         alpha = torch.linspace(0, 1, num_interp_steps, device=device).view(num_interp_steps, 1, 1, 1) # [num_interp_steps]
         ws = ws_from.unsqueeze(0) * (1 - alpha) + ws_to.unsqueeze(0) * alpha # [num_interp_steps, num_samples, num_ws, w_dim]
 
-    return ws
+        return ws, (z_from, z_to), (c_from, c_to)
 
 #----------------------------------------------------------------------------
 
 def generate_density(cfg, G, ws):
-    coords = create_voxel_coords(cfg.volume_res, cfg.voxel_origin, cfg.cube_size, 1) # [batch_size, volume_res ** 3, 3]
-    coords = coords.to(ws.device) # [batch_size, volume_res ** 3, 3]
+    coords = create_voxel_coords(cfg.voxel_res, cfg.voxel_origin, cfg.cube_size, 1) # [batch_size, voxel_res ** 3, 3]
+    coords = coords.to(ws.device) # [batch_size, voxel_res ** 3, 3]
     densities = []
 
     for idx in tqdm(range(len(ws))):
         curr_ws = ws[[idx]] # [1, num_ws, w_dim]
-        sigma = G.synthesis.compute_densities(curr_ws, coords, max_batch_res=cfg.max_batch_res) # [batch_size, volume_res ** 3, 1]
-        sigma = sigma.reshape(cfg.volume_res, cfg.volume_res, cfg.volume_res).cpu().numpy() # [volume_res ** 3]
+        sigma = G.synthesis.compute_densities(curr_ws, coords, max_batch_res=cfg.max_batch_res) # [batch_size, voxel_res ** 3, 1]
+        sigma = sigma.reshape(cfg.voxel_res, cfg.voxel_res, cfg.voxel_res).cpu().numpy() # [voxel_res ** 3]
         densities.append(sigma)
 
     return np.stack(densities)
@@ -233,11 +261,29 @@ def create_voxel_coords(resolution=256, voxel_origin=[0.0, 0.0, 0.0], cube_size=
 
     # transform first 3 columns
     # to be the x, y, z coordinate
-    coords[:, 0] = (coords[:, 0] * voxel_size) + voxel_origin[2] # [volume_res ** 3]
-    coords[:, 1] = (coords[:, 1] * voxel_size) + voxel_origin[1] # [volume_res ** 3]
-    coords[:, 2] = (coords[:, 2] * voxel_size) + voxel_origin[0] # [volume_res ** 3]
+    coords[:, 0] = (coords[:, 0] * voxel_size) + voxel_origin[2] # [voxel_res ** 3]
+    coords[:, 1] = (coords[:, 1] * voxel_size) + voxel_origin[1] # [voxel_res ** 3]
+    coords[:, 2] = (coords[:, 2] * voxel_size) + voxel_origin[0] # [voxel_res ** 3]
 
-    return coords.repeat(batch_size, 1, 1) # [batch_size, volume_res ** 3, 3]
+    return coords.repeat(batch_size, 1, 1) # [batch_size, voxel_res ** 3, 3]
+
+#----------------------------------------------------------------------------
+
+def parse_range(s: Union[str, List]) -> List[int]:
+    '''
+    Parse a comma separated list of numbers or ranges and return a list of ints.
+    Example: '1,2,5-10' returns [1, 2, 5, 6, 7]
+    Copy-pasted from EG3D
+    '''
+    if isinstance(s, list): return s
+    ranges = []
+    range_re = re.compile(r'^(\d+)-(\d+)$')
+    for p in s.split(','):
+        if m := range_re.match(p):
+            ranges.extend(range(int(m.group(1)), int(m.group(2))+1))
+        else:
+            ranges.append(int(p))
+    return ranges
 
 #----------------------------------------------------------------------------
 
@@ -245,4 +291,3 @@ if __name__ == "__main__":
     generate_vis() # pylint: disable=no-value-for-parameter
 
 #----------------------------------------------------------------------------
-

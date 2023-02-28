@@ -161,6 +161,17 @@ It's the visualization type we used for the teaser (as a video).
 python scripts/inference.py hydra.run.dir=. ckpt.network_pkl=<CKPT_PATH> vis=video camera=front_circle output_dir=<OUTPUT_DIR> num_seeds=16 truncation_psi=0.7
 ```
 
+### Geometry extraction
+
+You can also extract MRC volumes from the generator by running:
+
+```
+python scripts/extract_geometry.py hydra.run.dir=. hydra.run.dir=. ckpt.network_pkl=<PATH_TO_NETWORK_PKL> num_seeds=<NUM_SHAPES_TO_GENERATE> volume_res=256 save_mrc=true cube_size=<CUBE_SIZE_VALUE> output_dir=shapes
+```
+`CUBE_SIZE_VALUE` depends on your hyperparameters and should be somewhere in the [0.5, 1.0] range.
+You can then visualize it with ChimeraX.
+You can also extract PLY/OBJ shapes by setting `save_ply=true` and/or `save_obj=true` respectively — but then, you might need to tweak the `thresh_value` parameter for marching cubes.
+
 ## Reporting bugs and issues
 
 If something does not work as expected — please create an issue or email `iskorokhodov@gmail.com`.

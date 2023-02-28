@@ -1,3 +1,4 @@
+import sys; sys.path.extend(['.'])
 from omegaconf import DictConfig
 # from ast import DictComp
 # import plyfile
@@ -11,43 +12,50 @@ import hydra
 from tqdm import tqdm
 
 from scripts.utils import load_generator, set_seed
-from scripts.inference import create_voxel_coords, sample_z_from_seeds, sample_c_from_seeds
+from scripts.inference import create_voxel_coords, sample_ws_from_seeds, parse_range
 
 #----------------------------------------------------------------------------
 
 @hydra.main(config_path="../configs/scripts", config_name="extract_geometry.yaml")
 def extract_geometry(cfg: DictConfig):
     device = torch.device('cuda')
-    G = load_generator(cfg.ckpt, verbose=cfg.verbose)[0].to(device).eval()
-
     set_seed(42) # To fix non-z randomization
-    assert (not cfg.seeds is None) or (not cfg.num_seeds is None), "You must specify either `num_seeds` or `seeds`"
+    assert not (cfg.seeds is None and cfg.num_seeds is None), "You must specify either `num_seeds` or `seeds`"
+    assert cfg.seeds is None or cfg.num_seeds is None, "You cannot specify both `num_seeds` and `seeds`"
     seeds = cfg.seeds if cfg.num_seeds is None else np.arange(cfg.num_seeds)
+    classes = None if cfg.classes is None else parse_range(cfg.classes)
+    G = load_generator(cfg.ckpt, verbose=cfg.verbose)[0].to(device).eval()
+    ws, _z, _c = sample_ws_from_seeds(G, seeds, cfg, device, classes=classes) # [num_grids, num_ws, w_dim]
+    sample_names = [f'{s:04d}' for s in seeds] if classes is None else [f'c{c:04d}-s{s:04d}' for c in classes for s in seeds]
 
-    for seed in tqdm(seeds, desc='Extracting geometry...'):
+    for name, ws in tqdm(zip(sample_names, ws.split(1, dim=0)), desc='Extracting geometry...', total=len(ws)):
         batch_size = 1
-        z = sample_z_from_seeds([seed], G.z_dim).to(device) # [batch_size, z_dim]
-        c = sample_c_from_seeds([seed], G.c_dim).to(device) # [batch_size, c_dim]
         coords = create_voxel_coords(cfg.volume_res, cfg.voxel_origin, cfg.cube_size, batch_size) # [batch_size, volume_res ** 3, 3]
-        coords = coords.to(z.device) # [batch_size, volume_res ** 3, 3]
-        ws = G.mapping(z, c, truncation_psi=cfg.truncation_psi) # [batch_size, num_ws, w_dim]
-        sigma = G.synthesis.compute_densities(ws, coords, max_batch_res=cfg.max_batch_res, noise_mode='const') # [batch_size, volume_res ** 3, 1]
+        coords = coords.to(ws.device) # [batch_size, volume_res ** 3, 3]
+        sigma = G.synthesis.compute_densities(ws, coords, noise_mode='const') # [batch_size, volume_res ** 3, 1]
         assert batch_size == 1
         sigma = sigma.reshape(cfg.volume_res, cfg.volume_res, cfg.volume_res).cpu().numpy() # [volume_res ** 3]
+        # sigma = sigma[cfg.volume_res//8:-cfg.volume_res//8:, cfg.volume_res//2:, :-cfg.volume_res//3]
 
         os.makedirs(cfg.output_dir, exist_ok=True)
 
-        if cfg.save_obj:
+        if cfg.save_obj or cfg.save_ply:
             import mcubes
             import trimesh
-            print('sigma percentiles:', {q: np.percentile(sigma.reshape(-1), q) for q in [50.0, 90.0, 95.0, 97.5, 99.0, 99.5]})
-            vertices, triangles = mcubes.marching_cubes(sigma, np.percentile(sigma, cfg.thresh_percentile))
+            # print('sigma percentiles:', {q: np.percentile(sigma.reshape(-1), q) for q in [90.0, 95.0, 97.5, 99.0, 99.5]})
+            # vertices, triangles = mcubes.marching_cubes(sigma, np.percentile(sigma, cfg.thresh_value))
+            vertices, triangles = mcubes.marching_cubes(sigma, cfg.thresh_value)
             mesh = trimesh.Trimesh(vertices, triangles)
-            mesh.export(f'{cfg.output_dir}/seed-{seed:04d}.obj')
+            mesh.apply_scale(1.0 / mesh.scale)
+            # mesh.vertices = mesh.vertices - mesh.center_mass
+            if cfg.save_obj:
+                mesh.export(os.path.join(cfg.output_dir, f'{name}.obj'))
+            if cfg.save_ply:
+                mesh.export(os.path.join(cfg.output_dir, f'{name}.ply'))
 
         if cfg.save_mrc:
             import mrcfile
-            with mrcfile.new_mmap(os.path.join(cfg.output_dir, f'seed-{seed:04d}.mrc'), overwrite=True, shape=sigma.shape, mrc_mode=2) as mrc:
+            with mrcfile.new_mmap(os.path.join(cfg.output_dir, f'{name}.mrc'), overwrite=True, shape=sigma.shape, mrc_mode=2) as mrc:
                 mrc.data[:] = sigma
 
 #----------------------------------------------------------------------------
