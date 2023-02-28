@@ -370,7 +370,7 @@ class SynthesisNetwork(torch.nn.Module):
             data=dict(rgb_sigma=coarse_output, z_vals=z_vals),
             batch_size=max_batch_res ** 2,
             dim=1,
-            clamp_mode=self.cfg.clamp_mode, noise_std=nerf_noise_std, use_inf_depth=self.cfg.bg_model.type is None,
+            clamp_mode=self.cfg.clamp_mode, noise_std=nerf_noise_std, use_inf_depth=self.cfg.bg_model.type is None, density_shift=self.cfg.density_shift,
         )['weights'] # [batch_size, h * w, num_steps, 1]
         weights = weights.reshape(batch_size * h * w, num_steps) + 1e-5 # [batch_size * h * w, num_steps]
 
@@ -406,7 +406,7 @@ class SynthesisNetwork(torch.nn.Module):
             batch_size=max_batch_res ** 2,
             dim=1,
             white_back_end_idx=white_back_end_idx, last_back=self.cfg.dataset.last_back, clamp_mode=self.cfg.clamp_mode,
-            noise_std=nerf_noise_std, use_inf_depth=self.cfg.bg_model.type is None)
+            noise_std=nerf_noise_std, use_inf_depth=self.cfg.bg_model.type is None, density_shift=self.cfg.density_shift)
         misc.assert_shape(int_out['final_transmittance'], [batch_size, h * w])
 
         if should_render_bg:

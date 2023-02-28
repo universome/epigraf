@@ -35,7 +35,7 @@ def normalize(x: torch.Tensor, dim: int=-1) -> torch.Tensor:
 #----------------------------------------------------------------------------
 
 @misc.profiled_function
-def fancy_integration(rgb_sigma, z_vals, noise_std=0.5, last_back=False, white_back_end_idx: int=0, clamp_mode=None, fill_mode=None, sp_beta: float=1.0, use_inf_depth: bool=True):
+def fancy_integration(rgb_sigma, z_vals, noise_std=0.5, last_back=False, white_back_end_idx: int=0, clamp_mode=None, fill_mode=None, sp_beta: float=1.0, use_inf_depth: bool=True, density_shift: float=0.0):
     """
     Performs NeRF volumetric rendering over features or colors.
     Assumes that the last dimension is density.
@@ -52,6 +52,8 @@ def fancy_integration(rgb_sigma, z_vals, noise_std=0.5, last_back=False, white_b
 
     if noise_std > 0:
         sigmas = sigmas + noise_std * torch.randn_like(sigmas) # [batch_size, h * w, num_steps, 1]
+
+    sigmas = sigmas + density_shift # [batch_size, h * w, num_steps, 1]
 
     if clamp_mode == 'softplus':
         sigmas = F.softplus(sigmas, beta=sp_beta) # [batch_size, h * w, num_steps, 1]

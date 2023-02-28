@@ -13,6 +13,10 @@ generator:
   nerf_noise_std_init: 1.0
   nerf_noise_kimg_growth: 5000
 
+  # An additive constant to add to the predicted volumetric density.
+  # Might help to nudge the generator to produce sparser volumes (e.g., EG3D sets it to -1.0).
+  density_shift: 0.0
+
   # Should we use spatial noise in StyleGAN2?
   # Very strangely, we found this to be important in our early experiments...
   use_noise: true
