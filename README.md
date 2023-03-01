@@ -24,11 +24,10 @@ Limitations / known problems:
 
 Please, create an issue if you'll find any problems, bugs or have any questions with our repo.
 
-Checkpoints:
+Checkpoints (do not forget to update the repo to the latest version before using them):
 - [x] FFHQ 512x512: [FID: 9.87 | 767 MB](https://disk.yandex.ru/d/XJ0k9-kQyHouwQ)
-- [ ] FFHQ 256x256
-- [ ] Megascans Plants 256x256
-- [ ] Megascans Food 256x256
+- [x] Megascans Plants 256x256: [FID: 18.64 | 875 MB](https://disk.yandex.ru/d/IMhPcneOhmoq8Q) (you can download the original checkpoint with the corresponding old *dev* code snapshot [here](https://disk.yandex.ru/d/dQe5f47aR6RIKw))
+- [x] Megascans Food 256x256: [FID: 19.95 | 875 MB](https://disk.yandex.ru/d/4kp_nOmMcM_OhQ) (you can download the original checkpoint with the corresponding old *dev* code snapshot [here](https://disk.yandex.ru/d/dQe5f47aR6RIKw))
 
 ## Installation
 
